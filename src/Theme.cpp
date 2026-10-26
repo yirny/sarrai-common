@@ -2022,32 +2022,47 @@ namespace
 		}
 	}
 
-	// A painter's palette: a round board with a bite out of its lower right for the thumb, and
-	// three dabs of paint along the rim across from the bite, smaller towards the upper right,
-	// each as far from the rim and from the next.
+	// A painter's palette: a round board with a bite out of its lower right for the thumb, the
+	// bite's two corners rounded, and three dabs of paint along the rim across from the bite,
+	// smaller towards the upper right, each as far from the rim and from the next.
 	void DrawPaletteIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		constexpr float kRadius = 0.368f;                      // the board's, of the side
+		constexpr float kRadius = 0.340f;                      // the board's, of the side
 		constexpr float kBiteTop = 18.0f * IM_PI / 180.0f;     // where the bite leaves the rim, clockwise from the right
 		constexpr float kBiteBottom = 82.0f * IM_PI / 180.0f;  // and where it meets it again
+		constexpr float kRoundAngle = 14.0f * IM_PI / 180.0f;  // a rounded corner's reach along the rim
+		constexpr float kRoundT = 0.22f;                       // and along the bite's curve, of its length
 		constexpr int   kBiteSegments = 8;
+		constexpr int   kRoundSegments = 8;
 		struct Dab
 		{
 			float x, y, radius;  // of the side
 		};
-		constexpr std::array<Dab, 3> kDabs{ { { 0.319f, 0.605f, 0.079f }, { 0.329f, 0.368f, 0.072f }, { 0.531f, 0.278f, 0.064f } } };
+		constexpr std::array<Dab, 3> kDabs{ { { 0.333f, 0.597f, 0.079f }, { 0.342f, 0.378f, 0.072f }, { 0.529f, 0.295f, 0.064f } } };
 
 		const ImVec2 centre = a_frame.At(0.50f, 0.50f);
 		const float  radius = kRadius * a_frame.side;
 		const auto   rim = [&](float a_angle) { return ImVec2(centre.x + std::cos(a_angle) * radius, centre.y + std::sin(a_angle) * radius); };
 		const ImVec2 top = rim(kBiteTop);
 		const ImVec2 bottom = rim(kBiteBottom);
-		const ImVec2 control = a_frame.At(0.642f, 0.669f);
-		// Round from the bite's bottom to its top, then the bite's curve back, without its ends:
+		const ImVec2 control = a_frame.At(0.631f, 0.656f);
+		const auto   bite = [&](float a_t) { return ImBezierQuadraticCalc(top, control, bottom, a_t); };
+		const ImVec2 arcStart = rim(kBiteBottom + kRoundAngle);
+		const ImVec2 arcEnd = rim(kBiteTop + 2.0f * IM_PI - kRoundAngle);
+		const ImVec2 biteStart = bite(kRoundT);
+		const ImVec2 biteEnd = bite(1.0f - kRoundT);
+		// Round from the lower corner to the upper one, that corner's curve with the corner as its
+		// control point, the bite, then the lower corner's curve, each without the point before it:
 		// a point twice over would thicken the closed outline's join.
-		a_draw->PathArcTo(centre, radius, kBiteBottom, kBiteTop + 2.0f * IM_PI);
-		for (int i = 1; i < kBiteSegments; ++i) {
-			a_draw->PathLineTo(ImBezierQuadraticCalc(top, control, bottom, static_cast<float>(i) / kBiteSegments));
+		a_draw->PathArcTo(centre, radius, kBiteBottom + kRoundAngle, kBiteTop + 2.0f * IM_PI - kRoundAngle);
+		for (int i = 1; i <= kRoundSegments; ++i) {
+			a_draw->PathLineTo(ImBezierQuadraticCalc(arcEnd, top, biteStart, static_cast<float>(i) / kRoundSegments));
+		}
+		for (int i = 1; i <= kBiteSegments; ++i) {
+			a_draw->PathLineTo(bite(kRoundT + (1.0f - 2.0f * kRoundT) * static_cast<float>(i) / kBiteSegments));
+		}
+		for (int i = 1; i < kRoundSegments; ++i) {
+			a_draw->PathLineTo(ImBezierQuadraticCalc(biteEnd, bottom, arcStart, static_cast<float>(i) / kRoundSegments));
 		}
 		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
 		for (const auto& dab : kDabs) {

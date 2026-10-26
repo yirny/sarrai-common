@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./docs/archive/**)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"Chat is in Japanese.\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}

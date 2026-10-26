@@ -4,7 +4,8 @@
 //   Constants  - speeds and sensitivities
 //   State      - what Begin changed, kept for End
 //   Helpers    - free camera fields, the third person state, the toggle that
-//                keeps the control switches
+//                keeps the control switches, the first / third person switch
+//                and its way back, the start at the player's eyes
 //   API        - Begin / Move / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
@@ -52,6 +53,7 @@ namespace
 		RE::BSTSmartPointer<RE::TESCameraState> previousState;
 		FreeCameraFields                        freeFields;
 		bool                                    forcedThirdPerson = false;                   // the player was in first person
+		bool                                    forcedFirstPerson = false;                   // the camera was in third person, and Begin started from the eyes
 		bool                                    restoreOrbit = false;                        // the game was in third person, so End puts `orbit` back
 		RE::NiPoint2                            orbit;                                       // ThirdPersonState::freeRotation as Begin found it
 		RE::ActorHandle                         actor;                                       // the previewed actor, which a left drag turns around
@@ -163,13 +165,75 @@ namespace
 			controls->SetControlsState(enabled, stored);
 		}
 	}
+
+	// Switches to first person (`first`) or third person unless the camera is
+	// there already; `switched` then tells End to switch back. False, with the
+	// camera put back, when the switch does not take.
+	bool SwitchPerson(RE::PlayerCamera& camera, bool first, bool& switched)
+	{
+		if (first ? camera.IsInFirstPerson() : camera.IsInThirdPerson()) {
+			return true;
+		}
+		const bool done = first ? camera.ForceFirstPerson() && camera.IsInFirstPerson() : camera.ForceThirdPerson() && camera.IsInThirdPerson();
+		if (!done) {
+			logger::warn("Free camera: could not switch to {} person", first ? "first" : "third");
+			if (first && !camera.IsInThirdPerson()) {
+				camera.ForceThirdPerson();
+			} else if (!first && !camera.IsInFirstPerson()) {
+				camera.ForceFirstPerson();
+			}
+			return false;
+		}
+		switched = true;
+		return true;
+	}
+
+	// Undoes SwitchPerson and puts back the turn around the player.
+	// Contract: after the free camera has ended. The way back to third person
+	// leaves the turn at zero (seen in game), so it is written once third
+	// person is current.
+	void SwitchBack(RE::PlayerCamera& camera, const Session& session)
+	{
+		if (session.forcedFirstPerson) {
+			camera.ForceThirdPerson();
+		}
+		auto* third = session.restoreOrbit && camera.IsInThirdPerson() ? ThirdState(camera) : nullptr;
+		if (third) {
+			logger::info("Free camera off: the turn around the player put back (the game had moved it by heading {:+.1f} deg, pitch {:+.1f} deg)",
+				Degrees(third->freeRotation.x - session.orbit.x), Degrees(third->freeRotation.y - session.orbit.y));
+			third->freeRotation = session.orbit;
+		}
+		if (session.forcedThirdPerson) {
+			camera.ForceFirstPerson();
+		}
+	}
+
+	// Puts the free camera at the player's eyes, looking where they look. Set
+	// here rather than left to the free camera's own start, which may not have
+	// caught up with a switch to first person made in the same frame.
+	void StartAtEyes(RE::FreeCameraState& free)
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		if (!player) {
+			return;
+		}
+		RE::NiPoint3 origin;
+		RE::NiPoint3 direction;
+		player->GetEyeVector(origin, direction, false);
+		free.translation = origin;
+		if (direction.Unitize() > 0.0f) {
+			// The inverse of Move's forward vector: (sin yaw cos pitch, cos yaw cos pitch, -sin pitch).
+			free.rotation.y = std::atan2(direction.x, direction.y);
+			free.rotation.x = std::clamp(std::asin(std::clamp(-direction.z, -1.0f, 1.0f)), -kMaxPitch, kMaxPitch);
+		}
+	}
 }
 
 namespace FreeCamera
 {
 	// --- API ------------------------------------------------------------------
 
-	bool Begin(RE::Actor& actor)
+	bool Begin(RE::Actor& actor, bool startFromFirstPerson)
 	{
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		auto* free = camera ? FreeState(*camera) : nullptr;
@@ -177,23 +241,19 @@ namespace FreeCamera
 			return false;
 		}
 		Session session;
-		if (actor.IsPlayerRef() && camera->IsInFirstPerson()) {
-			if (!camera->ForceThirdPerson() || !camera->IsInThirdPerson()) {
-				logger::warn("Free camera: could not switch to third person");
-				if (!camera->IsInFirstPerson()) {
-					camera->ForceFirstPerson();
-				}
-				return false;
-			}
-			session.forcedThirdPerson = true;
-		}
-
 		// The way back to third person sets the camera's turn around the player to
 		// zero, so End puts back the one it has now.
-		if (auto* third = ThirdState(*camera); third && camera->IsInThirdPerson() && !session.forcedThirdPerson) {
+		if (auto* third = ThirdState(*camera); third && camera->IsInThirdPerson()) {
 			session.orbit = third->freeRotation;
 			session.restoreOrbit = true;
 		}
+		const bool switched = startFromFirstPerson ? SwitchPerson(*camera, true, session.forcedFirstPerson) :
+		                                             !actor.IsPlayerRef() || SwitchPerson(*camera, false, session.forcedThirdPerson);
+		if (!switched) {
+			SwitchBack(*camera, session);  // only the turn around the player: SwitchPerson put the view back
+			return false;
+		}
+
 		// The free camera starts where the camera is, looking the same way; its fields are kept only to put them back.
 		session.previousState = camera->currentState;
 		session.freeFields = ReadFields(*free);
@@ -204,10 +264,11 @@ namespace FreeCamera
 			if (camera->currentState.get() != session.previousState.get()) {
 				camera->SetState(session.previousState.get());
 			}
-			if (session.forcedThirdPerson) {
-				camera->ForceFirstPerson();
-			}
+			SwitchBack(*camera, session);
 			return false;
+		}
+		if (startFromFirstPerson) {
+			StartAtEyes(*free);
 		}
 		free->SetInputEventHandlingEnabled(false);  // the window drives it (Move)
 		free->zUpDown = {};
@@ -221,8 +282,8 @@ namespace FreeCamera
 		session.lookRadiansPerPixel = ReadLookRadiansPerPixel();
 		session.active = true;
 		g_session = std::move(session);
-		logger::info("Free camera on {:08X} (invert Y: {}, look {:.6f} rad/px)", actor.GetFormID(), g_session.invertY ? "on" : "off",
-			g_session.lookRadiansPerPixel);
+		logger::info("Free camera on {:08X}{} (invert Y: {}, look {:.6f} rad/px)", actor.GetFormID(), startFromFirstPerson ? ", from the eyes" : "",
+			g_session.invertY ? "on" : "off", g_session.lookRadiansPerPixel);
 		return true;
 	}
 
@@ -283,16 +344,6 @@ namespace FreeCamera
 		if (session.previousState && camera->currentState.get() != session.previousState.get()) {
 			camera->SetState(session.previousState.get());
 		}
-		// Contract: after the switch back, which leaves the turn around the player
-		// at zero (seen in game), so it is written once the state is current.
-		auto* third = session.restoreOrbit && camera->IsInThirdPerson() ? ThirdState(*camera) : nullptr;
-		if (third) {
-			logger::info("Free camera off: the turn around the player put back (the game had moved it by heading {:+.1f} deg, pitch {:+.1f} deg)",
-				Degrees(third->freeRotation.x - session.orbit.x), Degrees(third->freeRotation.y - session.orbit.y));
-			third->freeRotation = session.orbit;
-		}
-		if (session.forcedThirdPerson) {
-			camera->ForceFirstPerson();
-		}
+		SwitchBack(*camera, session);
 	}
 }

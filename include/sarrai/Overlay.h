@@ -21,9 +21,9 @@ namespace Overlay
 	// What the overlay asks of the plugin. Every callback is required.
 	struct Config
 	{
-		std::string           menuName;     // the game menu's name, unique among plugins: "LiveryMenu"
-		std::string           pluginName;   // in the log lines: "Livery"
-		std::filesystem::path assetFolder;  // holds fonts/ and textures/ (Theme), relative to the game folder
+		std::string           menuName;        // the game menu's name, unique among plugins: "LiveryMenu"
+		std::string           pluginName;      // in the log lines: "Livery"
+		std::filesystem::path assetFolder;     // holds fonts/ and textures/ (Theme), relative to the game folder
 		std::string           defaultIconKey;  // the row icon drawn for a key with no PNG (Theme::LoadTextures); "" for none
 
 		// Contract: render thread, once, as the overlay starts: the row icons for Theme::LoadTextures.
@@ -39,8 +39,9 @@ namespace Overlay
 		void (*queueInput)(RE::InputEvent* const* events) = nullptr;
 
 		// Contract: render thread, each frame the window is open, after the backends'
-		// NewFrame and before ImGui::NewFrame: Theme::Apply and feeding queued input.
-		void (*prepareFrame)() = nullptr;
+		// NewFrame and before ImGui::NewFrame: Theme::Apply (with `displayHeight`, the back
+		// buffer's height in pixels) and feeding queued input.
+		void (*prepareFrame)(float displayHeight) = nullptr;
 
 		// Contract: render thread, between ImGui::NewFrame and ImGui::Render.
 		void (*draw)() = nullptr;

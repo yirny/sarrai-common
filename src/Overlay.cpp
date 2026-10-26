@@ -135,7 +135,7 @@ namespace
 
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();  // sets io.DisplaySize; also queues the OS cursor, which prepareFrame's input feed overrides
-		g_config.prepareFrame();
+		g_config.prepareFrame(ImGui::GetIO().DisplaySize.y);
 		ImGui::NewFrame();
 
 		g_config.draw();

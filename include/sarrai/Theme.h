@@ -25,7 +25,7 @@ namespace Theme
 	};
 
 	// A skin's colours, each 0xRRGGBBAA (AA: opacity, FF opaque). The defaults are the Modern
-	// palette's, a dark grey; Settings holds Vanilla's and Nordic's and reads the palette files.
+	// palette's, a dark grey; Palettes (Palettes.h) holds Vanilla's and Nordic's and reads the palette files.
 	// Vanilla uses every colour but accentLight, Nordic neither accentLight nor selected.
 	struct Palette
 	{

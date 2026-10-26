@@ -6,6 +6,7 @@ Shared code for SKSE plugins built with CommonLibSSE-NG: an ImGui overlay drawn 
 |---|---|
 | `sarrai/Overlay.h` | D3D11 init and input dispatch hooks, a movie-less game menu that hosts the window (`Overlay::Config` holds the plugin's names, asset folder and callbacks) |
 | `sarrai/Theme.h` | `Theme::Apply` and the skinned widgets: lists, rows, fields, dropdowns, tabs, buttons, tooltips |
+| `sarrai/Palettes.h` | The palette files that pick a skin and its colours: the shipped ones (Modern, Edge, Vanilla, Nordic) written when missing, every file read once, the choice and Restore original palette |
 | `sarrai/FreeCamera.h` | The engine's free camera, moved by the window's mouse and key input |
 
 ## Use from a plugin

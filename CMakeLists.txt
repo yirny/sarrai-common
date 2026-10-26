@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(
     sarrai-common
     VERSION 0.0.1
-    DESCRIPTION "Shared ImGui overlay, skins and free camera for SKSE plugins"
+    DESCRIPTION "Shared ImGui overlay, skins, palettes and free camera for SKSE plugins"
     LANGUAGES CXX)
 
 # Built only inside a plugin's build: the plugin adds CommonLibSSE-NG (its
@@ -16,7 +16,7 @@ endif()
 # dx11-binding and win32-binding).
 find_package(imgui CONFIG REQUIRED)
 
-add_library(sarrai-common STATIC src/FreeCamera.cpp src/Overlay.cpp src/Theme.cpp)
+add_library(sarrai-common STATIC src/FreeCamera.cpp src/Overlay.cpp src/Palettes.cpp src/Theme.cpp)
 
 target_compile_features(sarrai-common PUBLIC cxx_std_23)
 target_include_directories(

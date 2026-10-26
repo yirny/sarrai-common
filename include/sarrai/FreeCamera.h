@@ -31,14 +31,17 @@ namespace FreeCamera
 	// Enters the free camera when the camera is in ordinary first or third
 	// person; otherwise changes nothing and returns false. Previewing the player
 	// from first person switches to third person first: first person does not
-	// draw their body.
-	bool Begin(RE::Actor& actor);
+	// draw their body. With `startFromFirstPerson` the camera instead switches to
+	// first person and starts at the player's eyes, looking where they look,
+	// whoever `actor` is. A left drag turns around `actor` either way.
+	bool Begin(RE::Actor& actor, bool startFromFirstPerson = false);
 
 	// Applies one frame of input; `speedScale` multiplies the move, pan and zoom rates
 	// (1 is normal; a left drag turns at the game's own rate). Does nothing without Begin.
 	void Move(const ViewInput& input, float speedScale);
 
-	// Puts back everything Begin changed, the third person camera's turn around
-	// the player included; does nothing when Begin did not take the camera.
+	// Puts back everything Begin changed, the first or third person view and the
+	// third person camera's turn around the player included; does nothing when
+	// Begin did not take the camera.
 	void End();
 }

@@ -5,7 +5,7 @@
 //   State      - what Begin changed, kept for End
 //   Helpers    - free camera fields, the third person state, the toggle that
 //                keeps the control switches, the first / third person switch
-//                and its way back, the start at the player's eyes
+//                and its way back, the start at the player's eyes, the limit clamp
 //   API        - Begin / Move / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
@@ -60,6 +60,7 @@ namespace
 		float                                   pitch = 0.0f;                                // radians in -kMaxPitch..kMaxPitch, positive looks down
 		bool                                    invertY = false;                             // the game's Invert Y Axis option, for a left drag up and down
 		float                                   lookRadiansPerPixel = kLookRadiansPerPixel;  // of a left drag, from the game's look sensitivity
+		RE::NiPoint3                            anchor;                                      // translation after Begin; Move's limits are measured from here
 	};
 
 	// Turns the camera's place around the actor by the angle the view just
@@ -227,6 +228,28 @@ namespace
 			free.rotation.x = std::clamp(std::asin(std::clamp(-direction.z, -1.0f, 1.0f)), -kMaxPitch, kMaxPitch);
 		}
 	}
+
+	// Pulls a place that has left the limits back onto them. A zero limit is not applied.
+	void ClampToAnchor(RE::NiPoint3& place, const RE::NiPoint3& anchor, FreeCamera::MoveLimits limits)
+	{
+		if (limits.maxDistance > 0.0f) {
+			const float dx = place.x - anchor.x;
+			const float dy = place.y - anchor.y;
+			const float dist2 = dx * dx + dy * dy;
+			const float max2 = limits.maxDistance * limits.maxDistance;
+			if (dist2 > max2 && dist2 > 0.0f) {
+				const float scale = limits.maxDistance / std::sqrt(dist2);
+				place.x = anchor.x + dx * scale;
+				place.y = anchor.y + dy * scale;
+			}
+		}
+		if (limits.maxDown > 0.0f) {
+			place.z = (std::max)(place.z, anchor.z - limits.maxDown);
+		}
+		if (limits.maxUp > 0.0f) {
+			place.z = (std::min)(place.z, anchor.z + limits.maxUp);
+		}
+	}
 }
 
 namespace FreeCamera
@@ -280,6 +303,7 @@ namespace FreeCamera
 		session.pitch = std::clamp(std::remainder(free->rotation.x, 2.0f * std::numbers::pi_v<float>), -kMaxPitch, kMaxPitch);
 		session.invertY = ReadInvertY();
 		session.lookRadiansPerPixel = ReadLookRadiansPerPixel();
+		session.anchor = free->translation;
 		session.active = true;
 		g_session = std::move(session);
 		logger::info("Free camera on {:08X}{} (invert Y: {}, look {:.6f} rad/px)", actor.GetFormID(), startFromFirstPerson ? ", from the eyes" : "",
@@ -289,11 +313,11 @@ namespace FreeCamera
 
 	// rotation.x is the pitch (positive looks down), rotation.y the heading the
 	// camera faces, in Skyrim's convention: heading 0 faces +Y, and turns clockwise
-	// seen from above. A left drag sideways turns the view and the camera's place
-	// around the actor together; up and down tilts in place, as the game's mouse
-	// look does (Invert Y Axis included). The engine reads the fields every frame,
-	// so nothing else needs an update.
-	void Move(const ViewInput& input, float speedScale)
+	// seen from above. A left drag sideways turns the view and, unless asked to turn
+	// in place, the camera's place around the actor together; up and down tilts in
+	// place, as the game's mouse look does (Invert Y Axis included). The engine reads
+	// the fields every frame, so nothing else needs an update.
+	void Move(const ViewInput& input, float speedScale, MoveLimits limits)
 	{
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		auto* free = camera ? FreeState(*camera) : nullptr;
@@ -305,7 +329,9 @@ namespace FreeCamera
 		const float look = g_session.lookRadiansPerPixel;  // the game's own rate: the camera speed setting does not apply
 		const float turn = input.lookX * look;
 		free->rotation.y += turn;
-		OrbitActor(*free, g_session.actor, turn);
+		if (!limits.turnInPlace) {
+			OrbitActor(*free, g_session.actor, turn);
+		}
 		// The pitch is the session's own, never read back: the engine may store a
 		// look above the horizon as an angle near 2pi, which a clamp would turn
 		// into looking straight down.
@@ -315,16 +341,22 @@ namespace FreeCamera
 		const float        yaw = free->rotation.y;
 		const float        pitch = g_session.pitch;
 		const RE::NiPoint3 forward{ std::sin(yaw) * std::cos(pitch), std::cos(yaw) * std::cos(pitch), -std::sin(pitch) };
+		const RE::NiPoint3 level{ std::sin(yaw), std::cos(yaw), 0.0f };
 		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
 		const RE::NiPoint3 up{ 0.0f, 0.0f, 1.0f };
 
 		const float step = kMoveUnitsPerSecond * scale * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
-		auto        move = forward * (input.moveForward * step + input.zoomSteps * kZoomUnitsPerStep * scale);
-		move += right * (input.moveRight * step);
-		// A right drag moves the camera the way the mouse goes; the scene slides the other way.
-		const float pan = kPanUnitsPerPixel * scale;
-		move += right * (input.panX * pan) + up * (-input.panY * pan);
+		auto        move = forward * (input.moveForward * step);
+		move += (limits.levelZoom ? level : forward) * (input.zoomSteps * kZoomUnitsPerStep * scale);
+		move += up * (input.moveUp * step);
+		if (limits.allowLateral) {
+			move += right * (input.moveRight * step);
+			// A right drag moves the camera the way the mouse goes; the scene slides the other way.
+			const float pan = kPanUnitsPerPixel * scale;
+			move += right * (input.panX * pan) + up * (-input.panY * pan);
+		}
 		free->translation += move;
+		ClampToAnchor(free->translation, g_session.anchor, limits);
 	}
 
 	void End()

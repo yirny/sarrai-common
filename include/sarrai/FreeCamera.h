@@ -12,7 +12,7 @@ namespace RE
 // window reports mouse and key input over the game (ViewInput) or as
 // CentreSideways puts it.
 //
-// Contract: every function runs on the game thread.
+// Contract: every function runs on the game thread, except Gliding.
 namespace FreeCamera
 {
 	// One frame of the window's mouse and key input over the game.
@@ -51,14 +51,22 @@ namespace FreeCamera
 	// whoever `actor` is. A left drag turns around `actor` unless Move is asked to turn in place.
 	bool Begin(RE::Actor& actor, bool startFromFirstPerson = false);
 
-	// Applies one frame of input; `speedScale` multiplies the move, pan and zoom rates
-	// (1 is normal; a left drag turns at the game's own rate). Does nothing without Begin.
+	// Applies one frame of input, and the frame's part of a CentreSideways glide; `speedScale`
+	// multiplies the move, pan and zoom rates (1 is normal; a left drag turns at the game's
+	// own rate). Does nothing without Begin.
 	void Move(const ViewInput& input, float speedScale, MoveLimits limits = {});
 
 	// Moves the camera sideways, along its right, until `actor` stands in the middle of the
 	// view from left to right; the heading, the tilt, the height and the distance stay, so an
-	// over-the-shoulder offset is all that goes. Call right after Begin; does nothing without it.
-	void CentreSideways(RE::Actor& actor);
+	// over-the-shoulder offset is all that goes. With `seconds` it glides there, easing to a
+	// stop, as Move runs each frame; 0 moves it at once. Call right after Begin; does nothing
+	// without it.
+	void CentreSideways(RE::Actor& actor, float seconds = 0.0f);
+
+	// True while a CentreSideways glide is under way: the caller keeps calling Move each
+	// frame, with empty input when there is none, until it is false.
+	// Contract: safe from any thread; the window reads it on the render thread.
+	bool Gliding();
 
 	// Puts back everything Begin changed, the first or third person view and the
 	// third person camera's turn around the player included; does nothing when

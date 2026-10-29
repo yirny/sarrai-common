@@ -22,7 +22,7 @@
 //   Theme      - LoadFonts / LoadTextures / Apply, then the skinned widgets, the
 //                lists between rules (BeginList / EndList) and their columns
 //                (HeaderRow over multi-column tick rows), list headings (the
-//                outfit lists' folding ones, Manage Situations' situation headings)
+//                outfit lists' folding ones, the Situations page's situation headings)
 //                and outfit rows with a drag grip
 //
 // The Modern skin began as a copy of Tailor 3.0 (GPL-3.0), src/ui/imgui/Theme.cpp and

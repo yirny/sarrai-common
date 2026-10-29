@@ -5,8 +5,9 @@
 //   State      - what Begin changed, kept for End
 //   Helpers    - free camera fields, the third person state, the toggle that
 //                keeps the control switches, the first / third person switch
-//                and its way back, the start at the player's eyes, the limit clamp
-//   API        - Begin / Move / CentreSideways / End
+//                and its way back, the start at the player's eyes, the limit clamp,
+//                a frame of the sideways glide
+//   API        - Begin / Move / CentreSideways / Gliding / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
 // (src/preview/TailorPreviewSession.cpp and PreviewSessionPolicy.h in its
@@ -16,6 +17,7 @@
 #include "sarrai/FreeCamera.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <numbers>
@@ -61,6 +63,10 @@ namespace
 		bool                                    invertY = false;                             // the game's Invert Y Axis option, for a left drag up and down
 		float                                   lookRadiansPerPixel = kLookRadiansPerPixel;  // of a left drag, from the game's look sensitivity
 		RE::NiPoint3                            anchor;                                      // translation after Begin; Move's limits are measured from here
+		float                                   glideTotal = 0.0f;                           // units CentreSideways moves the camera along its right
+		float                                   glideDone = 0.0f;                            // of glideTotal, moved so far
+		float                                   glideSeconds = 0.0f;                         // the glide's length; 0 for none under way
+		float                                   glideElapsed = 0.0f;                         // seconds of it gone
 	};
 
 	// Turns the camera's place around the actor by the angle the view just
@@ -84,6 +90,9 @@ namespace
 	}
 
 	Session g_session;
+
+	// Contract: written on the game thread only; Gliding reads it from any thread.
+	std::atomic<bool> g_gliding{ false };
 
 	// --- Helpers --------------------------------------------------------------
 
@@ -250,6 +259,27 @@ namespace
 			place.z = (std::min)(place.z, anchor.z + limits.maxUp);
 		}
 	}
+
+	// Moves the camera by the part of the glide that falls in this frame, fast at first and
+	// slowing to a stop (an ease-out cubic). A long frame finishes it and never overshoots.
+	void StepGlide(RE::FreeCameraState& free, const RE::NiPoint3& right, float seconds)
+	{
+		if (g_session.glideSeconds <= 0.0f) {
+			return;
+		}
+		g_session.glideElapsed += seconds;
+		const float t = (std::min)(g_session.glideElapsed / g_session.glideSeconds, 1.0f);
+		const float left = 1.0f - t;
+		const float done = g_session.glideTotal * (1.0f - left * left * left);
+		const auto  step = right * (done - g_session.glideDone);
+		g_session.glideDone = done;
+		free.translation += step;
+		g_session.anchor += step;
+		if (t >= 1.0f) {
+			g_session.glideSeconds = 0.0f;
+			g_gliding.store(false);
+		}
+	}
 }
 
 namespace FreeCamera
@@ -322,6 +352,7 @@ namespace FreeCamera
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		auto* free = camera ? FreeState(*camera) : nullptr;
 		if (!g_session.active || !free || camera->currentState.get() != free) {
+			g_gliding.store(false);  // nothing left to glide, so the window stops sending empty frames
 			return;
 		}
 
@@ -356,12 +387,14 @@ namespace FreeCamera
 			move += right * (input.panX * pan) + up * (-input.panY * pan);
 		}
 		free->translation += move;
+		// After this frame's turn: the remaining glide is along the right the camera has now.
+		StepGlide(*free, right, input.seconds);
 		ClampToAnchor(free->translation, g_session.anchor, limits);
 	}
 
 	// Moving along Move's right vector changes neither the actor's depth nor its height on
 	// screen, and the place Move's limits are measured from goes with the camera.
-	void CentreSideways(RE::Actor& actor)
+	void CentreSideways(RE::Actor& actor, float seconds)
 	{
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		auto* free = camera ? FreeState(*camera) : nullptr;
@@ -371,9 +404,22 @@ namespace FreeCamera
 		const float        yaw = free->rotation.y;
 		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
 		const float        side = (actor.GetPosition() - free->translation).Dot(right);
-		free->translation += right * side;
-		g_session.anchor += right * side;
-		logger::info("Free camera moved {:+.1f} units sideways to centre {:08X}", side, actor.GetFormID());
+		if (seconds > 0.0f) {
+			g_session.glideTotal = side;
+			g_session.glideDone = 0.0f;
+			g_session.glideElapsed = 0.0f;
+			g_session.glideSeconds = seconds;
+			g_gliding.store(true);
+		} else {
+			free->translation += right * side;
+			g_session.anchor += right * side;
+		}
+		logger::info("Free camera moves {:+.1f} units sideways in {:.1f} s to centre {:08X}", side, seconds, actor.GetFormID());
+	}
+
+	bool Gliding()
+	{
+		return g_gliding.load();
 	}
 
 	void End()
@@ -381,7 +427,8 @@ namespace FreeCamera
 		if (!g_session.active) {
 			return;
 		}
-		auto  session = std::exchange(g_session, Session{});
+		auto session = std::exchange(g_session, Session{});
+		g_gliding.store(false);
 		auto* camera = RE::PlayerCamera::GetSingleton();
 		auto* free = camera ? FreeState(*camera) : nullptr;
 		if (!free || camera->currentState.get() != free) {

@@ -9,7 +9,8 @@ namespace RE
 // A camera the plugin's window drives (see FreeCamera.cpp): the engine's free camera,
 // as the tfc console command gives it, with the engine's own input off. It
 // starts where the camera is, looking the same way, and moves only as the
-// window reports mouse and key input over the game (ViewInput).
+// window reports mouse and key input over the game (ViewInput) or as
+// CentreSideways puts it.
 //
 // Contract: every function runs on the game thread.
 namespace FreeCamera
@@ -53,6 +54,11 @@ namespace FreeCamera
 	// Applies one frame of input; `speedScale` multiplies the move, pan and zoom rates
 	// (1 is normal; a left drag turns at the game's own rate). Does nothing without Begin.
 	void Move(const ViewInput& input, float speedScale, MoveLimits limits = {});
+
+	// Moves the camera sideways, along its right, until `actor` stands in the middle of the
+	// view from left to right; the heading, the tilt, the height and the distance stay, so an
+	// over-the-shoulder offset is all that goes. Call right after Begin; does nothing without it.
+	void CentreSideways(RE::Actor& actor);
 
 	// Puts back everything Begin changed, the first or third person view and the
 	// third person camera's turn around the player included; does nothing when

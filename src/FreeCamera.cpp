@@ -67,6 +67,7 @@ namespace
 		float                                   glideDone = 0.0f;                            // of glideTotal, moved so far
 		float                                   glideSeconds = 0.0f;                         // the glide's length; 0 for none under way
 		float                                   glideElapsed = 0.0f;                         // seconds of it gone
+		bool                                    glideTimed = false;                          // its first frame has passed, so frame lengths count
 	};
 
 	// Turns the camera's place around the actor by the angle the view just
@@ -262,12 +263,15 @@ namespace
 
 	// Moves the camera by the part of the glide that falls in this frame, fast at first and
 	// slowing to a stop (an ease-out cubic). A long frame finishes it and never overshoots.
+	// The first frame counts as no time: no ImGui frame runs while the window is closed, so
+	// the first one after it opens is as long as the window was closed.
 	void StepGlide(RE::FreeCameraState& free, const RE::NiPoint3& right, float seconds)
 	{
 		if (g_session.glideSeconds <= 0.0f) {
 			return;
 		}
-		g_session.glideElapsed += seconds;
+		g_session.glideElapsed += g_session.glideTimed ? seconds : 0.0f;
+		g_session.glideTimed = true;
 		const float t = (std::min)(g_session.glideElapsed / g_session.glideSeconds, 1.0f);
 		const float left = 1.0f - t;
 		const float done = g_session.glideTotal * (1.0f - left * left * left);
@@ -408,6 +412,7 @@ namespace FreeCamera
 			g_session.glideTotal = side;
 			g_session.glideDone = 0.0f;
 			g_session.glideElapsed = 0.0f;
+			g_session.glideTimed = false;
 			g_session.glideSeconds = seconds;
 			g_gliding.store(true);
 		} else {

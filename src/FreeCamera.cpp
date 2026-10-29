@@ -6,7 +6,7 @@
 //   Helpers    - free camera fields, the third person state, the toggle that
 //                keeps the control switches, the first / third person switch
 //                and its way back, the start at the player's eyes, the limit clamp
-//   API        - Begin / Move / End
+//   API        - Begin / Move / CentreSideways / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
 // (src/preview/TailorPreviewSession.cpp and PreviewSessionPolicy.h in its
@@ -357,6 +357,23 @@ namespace FreeCamera
 		}
 		free->translation += move;
 		ClampToAnchor(free->translation, g_session.anchor, limits);
+	}
+
+	// Moving along Move's right vector changes neither the actor's depth nor its height on
+	// screen, and the place Move's limits are measured from goes with the camera.
+	void CentreSideways(RE::Actor& actor)
+	{
+		auto* camera = RE::PlayerCamera::GetSingleton();
+		auto* free = camera ? FreeState(*camera) : nullptr;
+		if (!g_session.active || !free || camera->currentState.get() != free) {
+			return;
+		}
+		const float        yaw = free->rotation.y;
+		const RE::NiPoint3 right{ std::cos(yaw), -std::sin(yaw), 0.0f };
+		const float        side = (actor.GetPosition() - free->translation).Dot(right);
+		free->translation += right * side;
+		g_session.anchor += right * side;
+		logger::info("Free camera moved {:+.1f} units sideways to centre {:08X}", side, actor.GetFormID());
 	}
 
 	void End()

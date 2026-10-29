@@ -2647,8 +2647,9 @@ namespace Theme
 		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + SectionGapAt1080() * g_scale);
 	}
 
-	// LabelText's and CountText's line: the label font, or with `a_small` the small font.
-	void FieldLineText(const char* a_text, bool a_opensField, bool a_small)
+	// LabelText's and CountText's line: the label font, or with `a_small` the small font; with
+	// `a_star` the star first (LabelText).
+	void FieldLineText(const char* a_text, bool a_opensField, bool a_small, bool a_star)
 	{
 		if (a_opensField) {
 			SectionGap();
@@ -2663,20 +2664,28 @@ namespace Theme
 		} else {
 			PushLabelFont();
 		}
+		if (a_star) {
+			const float  side = ImGui::GetTextLineHeight();
+			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(side, side));
+			// The label's grey through the style alpha, so it fades with the label; 1px lines at 1080p.
+			DrawStarIcon(ImGui::GetWindowDrawList(), IconFrame{ topLeft, side }, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
+			ImGui::SameLine(0.0f, kRowIconGap * g_scale);
+		}
 		ImGui::TextUnformatted(a_text);
 		ImGui::PopFont();
 		ImGui::PopStyleColor();
 		ImGui::PopStyleVar();
 	}
 
-	void LabelText(const char* a_text, bool a_opensField)
+	void LabelText(const char* a_text, bool a_opensField, bool a_star)
 	{
-		FieldLineText(Caps(a_text).c_str(), a_opensField, false);
+		FieldLineText(Caps(a_text).c_str(), a_opensField, false, a_star);
 	}
 
 	void CountText(const char* a_text, bool a_opensField)
 	{
-		FieldLineText(a_text, a_opensField, true);
+		FieldLineText(a_text, a_opensField, true, false);
 	}
 
 	bool LabelLink(const char* a_label)
@@ -3289,12 +3298,18 @@ namespace Theme
 		return row.pressed;
 	}
 
-	void TextRow(const char* a_label)
+	void TextRow(const char* a_label, const RowIcon* a_icon)
 	{
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
-		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, SelectRowHeight()));
-		const ImVec2 text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
-		ImGui::GetWindowDrawList()->AddText(text, ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		const float  height = SelectRowHeight();
+		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, height));
+		auto* draw = ImGui::GetWindowDrawList();
+		float textX = cursor.x + RowTextShift();
+		if (a_icon) {
+			DrawRowIcon(draw, textX, cursor.y + height * 0.5f, *a_icon);
+			textX += RowIconRoom();
+		}
+		draw->AddText(ImVec2(textX, cursor.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 	}
 
 	// The rule after a ListHeading's text, kTextRuleGap past `a_textRight`, to kRuleEndPad short of
@@ -3662,14 +3677,30 @@ namespace Theme
 		return OutfitIconSide() + kPadX * 2.0f * g_scale;
 	}
 
-	bool IconField(const char* a_id, const RowIcon& a_icon)
+	void OutfitNameText(const char* a_name, const RowIcon& a_icon)
+	{
+		if (const float room = OutfitIconRoom(); room > 0.0f) {
+			const float side = OutfitIconSide();
+			DrawOutfitIconAt(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(), side, a_icon);
+			ImGui::Dummy(ImVec2(room, side));
+			ImGui::SameLine(0.0f, 0.0f);  // TextWrapped starts its wrapped lines where its first starts
+		}
+		ImGui::TextWrapped("%s", a_name);
+	}
+
+	bool IconField(const char* a_id, const RowIcon& a_icon, bool a_interactive)
 	{
 		const ImVec2 size(IconFieldWidth(), FieldHeight({}));
-		const bool   clicked = ImGui::InvisibleButton(a_id, size);
+		bool         clicked = false;
+		if (a_interactive) {
+			clicked = ImGui::InvisibleButton(a_id, size);
+		} else {
+			ImGui::Dummy(size);
+		}
 		const ImVec2 min = ImGui::GetItemRectMin();
 		const ImVec2 max = ImGui::GetItemRectMax();
 		auto*        draw = ImGui::GetWindowDrawList();
-		DrawTileFills(draw, min, max, false, ImGui::IsItemHovered());
+		DrawTileFills(draw, min, max, false, a_interactive && ImGui::IsItemHovered());
 		const float side = OutfitIconSide();
 		DrawOutfitIconAt(draw, ImVec2((min.x + max.x - side) * 0.5f, (min.y + max.y - side) * 0.5f), side, a_icon);
 		return clicked;

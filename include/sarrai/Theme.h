@@ -102,10 +102,12 @@ namespace Theme
 	// opens its field with SectionGap and sits a little closer to the control below it than the
 	// item spacing would. `opensField` false, a count line under a list: a smaller gap above
 	// it, 6px. CountText is LabelText with the text kept as written and in the small font in
-	// every skin, for count lines; the links take the small font too.
+	// every skin, for count lines; the links take the small font too. With `star`, the label
+	// starts with the star of TabIcon::kSituations, a square of the label's line height in its
+	// grey, and 6px.
 	// Contract: every field label goes through LabelText, and every count line
 	// ("2 of 5 item(s) selected", "12 outfit(s) in the wardrobe") through CountText.
-	void LabelText(const char* text, bool opensField = true);
+	void LabelText(const char* text, bool opensField = true, bool star = false);
 	void CountText(const char* text, bool opensField = true);
 
 	// A clickable label at the right end of the line just laid out (call it
@@ -249,10 +251,12 @@ namespace Theme
 	float SelectRowHeight();
 
 	// A read-only row laid out as SelectRow lays out its text, with no fill or
-	// click, so a plain list lines up with a single-choice one beside it.
+	// click, so a plain list lines up with a single-choice one beside it. With `icon`, its
+	// texture is drawn first as TickRow draws it and the text starts RowIconRoom later, also
+	// for a key with no texture, so the rows' text lines up.
 	// Lay rows out ListRowGap apart.
 	// Contract: inside BeginList.
-	void TextRow(const char* label);
+	void TextRow(const char* label, const RowIcon* icon = nullptr);
 
 	// A mark left of a list heading's text, an 18px square in its grey centred on the text's
 	// line, which moves the text right.
@@ -384,10 +388,15 @@ namespace Theme
 	// Whether the PNG of the IconFile key `key` is loaded, so the icon picker can offer it.
 	bool HasOutfitIcon(std::string_view key);
 
+	// A read-only outfit name, wrapped, after its `icon` as OutfitRow draws it and 6px; its
+	// wrapped lines start under the name's first, not under the icon.
+	void OutfitNameText(const char* name, const RowIcon& icon);
+
 	// Manage Wardrobe's icon field: the outfit's `icon` as OutfitRow draws it, IconFieldWidth
 	// wide (8px on either side) and as tall as a field, the whole of it filled in the hover
-	// colour while hovered. Returns true when clicked. `id` is its ImGui ID.
-	bool  IconField(const char* id, const RowIcon& icon);
+	// colour while hovered. Returns true when clicked. `id` is its ImGui ID. Not
+	// `interactive`, the icon alone, never filled; it returns false.
+	bool  IconField(const char* id, const RowIcon& icon, bool interactive = true);
 	float IconFieldWidth();
 
 	// One icon of the icon picker, an IconTileSide square: the icon as tall as a frame with

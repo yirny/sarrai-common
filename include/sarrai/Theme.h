@@ -279,6 +279,7 @@ namespace Theme
 		kBackpack,     // a backpack
 		kDressedForm,  // an outfit row's mark of the outfit worn now
 		kBareForm,     // an outfit row's mark of the Default, the Dress tab's form
+		kWardrobe,     // the Wardrobe tab's wardrobe
 		kChest,        // the Chests tab's chest
 		kStar          // the Situations tab's star
 	};

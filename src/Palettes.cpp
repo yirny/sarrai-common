@@ -83,12 +83,13 @@ namespace
 		const wchar_t*                  comment;
 		const wchar_t*                  squareComment = nullptr;
 	};
-	constexpr std::array<PaletteKey, 11> kPaletteKeys{ {
+	constexpr std::array<PaletteKey, 12> kPaletteKeys{ {
 		{ L"Window", &Theme::Palette::window, kAllSkins, L"The window." },
 		{ L"Surface", &Theme::Palette::surface, kAllSkins, L"Popups, dropdown lists and tooltips." },
 		{ L"Text", &Theme::Palette::text, kAllSkins, L"Text, and faint, the fills of fields, buttons and the scroll bar.",
 			L"Text, a link or label under the mouse, and faint, the fills of fields, buttons and the scroll bar." },
 		{ L"Label", &Theme::Palette::label, kAllSkins, L"Field and column labels, list headings, links and greyed text." },
+		{ L"Emphasis", &Theme::Palette::emphasis, kAllSkins, L"Names inside greyed text or a link: this colour under the mouse, a little darker otherwise." },
 		{ L"Accent", &Theme::Palette::accent, kAllSkins,
 			L"Ticks, a selected row's rule, a link or label under the mouse, the dropdown arrow, the frame of a field that narrows a list.",
 			L"The arrow at a selected row, ticks, and in Nordic the corner knots, the heading and tab ropes and the button frames." },
@@ -120,6 +121,7 @@ namespace
 		.surface = 0x000000EB,
 		.text = 0xFFFFFFFF,
 		.label = 0xA5A5A5FF,
+		.emphasis = 0xB9B19AFF,
 		.accent = 0xFFFFFFFF,
 		.rule = 0xFFFFFF46,
 		.hover = 0xFFFFFF40,
@@ -132,6 +134,7 @@ namespace
 		.surface = 0x0A0A0AEB,
 		.text = 0xF0F0F0FF,
 		.label = 0xA5A5A5FF,
+		.emphasis = 0xB9B19AFF,
 		.accent = 0xDEDEDEFF,
 		.rule = 0xC8C8C85A,
 		.hover = 0xE5E5E565,
@@ -143,6 +146,7 @@ namespace
 		.surface = 0x262522FA,
 		.text = 0xDCD6C2FF,
 		.label = 0x8C8A7CFF,
+		.emphasis = 0xC7C3A2FF,
 		.accent = 0xD2BC72FF,
 		.accentLight = 0xF0DBA4FF,
 		.rule = 0x4A4639FF,

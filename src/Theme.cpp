@@ -152,6 +152,7 @@ namespace
 	// it and the row's first column (pixels at 1080p).
 	constexpr float kRowIconRatio = 0.8f;
 	constexpr float kRowIconGap = 6.0f;
+	constexpr float kHeadingIconSide = 18.0f;  // pixels at 1080p: a list heading's or a label's icon (HeadingIconDrawer)
 
 	struct FontFile
 	{
@@ -2059,6 +2060,44 @@ namespace
 		return nullptr;
 	}
 
+	// Where a Theme::HeadingIcon's drawing is centred vertically, of its frame's side: halfway
+	// between its topmost and lowest points, which the drawings above put off the frame's
+	// middle (the backpack's handle is short of the top, the chest's lid is).
+	float HeadingIconCentre(Theme::HeadingIcon a_icon)
+	{
+		switch (a_icon) {
+		case Theme::HeadingIcon::kBackpack:
+			return 0.535f;  // the handle's top 0.19 to the body's bottom 0.88
+		case Theme::HeadingIcon::kDressedForm:
+			return 0.515f;  // the neck's top 0.10 to the feet 0.93
+		case Theme::HeadingIcon::kBareForm:
+			return 0.525f;  // the neck's top 0.12 to the feet 0.93
+		case Theme::HeadingIcon::kChest:
+			return 0.57f;  // the lid's top 0.275 to the box's bottom 0.86
+		case Theme::HeadingIcon::kStar:
+		case Theme::HeadingIcon::kNone:
+			break;
+		}
+		return 0.5f;
+	}
+
+	// Draws `a_icon` as a square of `a_side` whose drawing is centred on screen Y `a_centreY`
+	// (HeadingIconCentre), its left edge at `a_left`.
+	void DrawIconCentredOn(ImDrawList* a_draw, Theme::HeadingIcon a_icon, float a_left, float a_centreY, float a_side, ImU32 a_color, float a_thick)
+	{
+		if (const auto icon = HeadingIconDrawer(a_icon)) {
+			icon(a_draw, IconFrame{ ImVec2(a_left, a_centreY - HeadingIconCentre(a_icon) * a_side), a_side }, a_color, a_thick);
+		}
+	}
+
+	// The middle of the current font's capitals, below the cursor's line top: halfway down the
+	// capital E's glyph, in the font bound now.
+	float CapsMiddle()
+	{
+		const auto* glyph = ImGui::GetFontBaked()->FindGlyph('E');
+		return glyph ? (glyph->Y0 + glyph->Y1) * 0.5f : ImGui::GetTextLineHeight() * 0.5f;
+	}
+
 	// A painter's palette: a round board with a bite out of its lower right for the thumb, the
 	// bite's two corners rounded, and three dabs of paint along the rim across from the bite,
 	// smaller towards the upper right, each as far from the rim and from the next.
@@ -2336,21 +2375,20 @@ namespace
 
 	// A list heading's icon (Theme::HeadingIcon), an 18px square in every skin, its left edge at
 	// the text's start `a_topLeft` and centred on the text's line, in `a_color`. Returns the
-	// room it takes before the text, the inner spacing included; 0 for none.
+	// room it takes before the text, a 6px gap included; 0 for none.
 	// Contract: in the heading's font.
 	float DrawHeadingIcon(ImDrawList* a_draw, ImVec2 a_topLeft, Theme::HeadingIcon a_icon, ImU32 a_color)
 	{
-		constexpr float kSide = 18.0f;      // pixels at 1080p
 		constexpr float kLineWidth = 1.0f;  // pixels at 1080p, as an outfit row's marks
 
 		const auto icon = HeadingIconDrawer(a_icon);
 		if (!icon) {
 			return 0.0f;
 		}
-		const float side = kSide * g_scale;
+		const float side = kHeadingIconSide * g_scale;
 		const float top = a_topLeft.y + (ImGui::GetTextLineHeight() - side) * 0.5f;
 		icon(a_draw, IconFrame{ ImVec2(a_topLeft.x, top), side }, a_color, (std::max)(1.0f, kLineWidth * g_scale));
-		return side + ImGui::GetStyle().ItemInnerSpacing.x;
+		return side + kRowIconGap * g_scale;
 	}
 
 	// The rule beside the tab column: Modern's 1px rule (Tailor 3.0's sidebar divider), Vanilla's
@@ -2688,12 +2726,13 @@ namespace Theme
 		} else {
 			PushLabelFont();
 		}
-		if (const auto icon = HeadingIconDrawer(a_icon)) {
-			const float  side = ImGui::GetTextLineHeight();
+		if (a_icon != Theme::HeadingIcon::kNone) {
+			// The icon's drawing centred on the capitals, which sit high on the line. The label's
+			// grey through the style alpha, so it fades with the label; 1px lines at 1080p.
+			const float  side = kHeadingIconSide * g_scale;
 			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-			ImGui::Dummy(ImVec2(side, side));
-			// The label's grey through the style alpha, so it fades with the label; 1px lines at 1080p.
-			icon(ImGui::GetWindowDrawList(), IconFrame{ topLeft, side }, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
+			ImGui::Dummy(ImVec2(side, ImGui::GetTextLineHeight()));
+			DrawIconCentredOn(ImGui::GetWindowDrawList(), a_icon, topLeft.x, topLeft.y + CapsMiddle(), side, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
 			ImGui::SameLine(0.0f, kRowIconGap * g_scale);
 		}
 		ImGui::TextUnformatted(a_text);
@@ -2717,20 +2756,23 @@ namespace Theme
 		FieldLineText(a_text, a_opensField, true, HeadingIcon::kNone);
 	}
 
-	float LabelLinkWidth(const char* a_label)
+	float LabelLinkWidth(const char* a_label, HeadingIcon a_icon)
 	{
 		PushSmallFont();
-		const float width = ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
+		const float side = ImGui::GetFontSize();
+		const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+		const float icon = a_icon != HeadingIcon::kNone ? side + gap : 0.0f;
+		const float width = side + gap + icon + ImGui::CalcTextSize(a_label).x;
 		ImGui::PopFont();
 		return width;
 	}
 
-	bool LabelLink(const char* a_label, LinkLine a_line, float a_reserveRight)
+	bool LabelLink(const char* a_label, LinkLine a_line, float a_reserveRight, HeadingIcon a_icon)
 	{
 		constexpr float kNextLineGap = 4.0f;  // pixels at 1080p, on top of the item spacing
 		constexpr float kLinkGap = 12.0f;     // pixels at 1080p, before the link `a_reserveRight` keeps room for
 
-		const float width = LabelLinkWidth(a_label);
+		const float width = LabelLinkWidth(a_label, a_icon);
 		PushSmallFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  side = ImGui::GetFontSize();
@@ -2751,7 +2793,13 @@ namespace Theme
 		const ImU32 color = LinkColor(ImGui::IsItemHovered());
 		auto*       draw = ImGui::GetWindowDrawList();
 		DrawPlusSquare(draw, topLeft, side, color);
-		draw->AddText(ImVec2(topLeft.x + side + style.ItemInnerSpacing.x, topLeft.y), color, a_label);
+		float textX = topLeft.x + side + style.ItemInnerSpacing.x;
+		if (a_icon != HeadingIcon::kNone) {
+			// A square of the plus's side, its drawing centred on the square's middle.
+			DrawIconCentredOn(draw, a_icon, textX, topLeft.y + side * 0.5f, side, color, (std::max)(1.0f, g_scale));
+			textX += side + style.ItemInnerSpacing.x;
+		}
+		draw->AddText(ImVec2(textX, topLeft.y), color, a_label);
 		ImGui::PopFont();
 		return clicked;
 	}

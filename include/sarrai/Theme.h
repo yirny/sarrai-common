@@ -117,15 +117,17 @@ namespace Theme
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// `line` kNext starts a line of its own under the item just laid out, 4px further down, for
 	// a second link or one under a list. `reserveRight` keeps that much room and a 12px gap at
-	// the right end, for a link (LabelLinkWidth) that follows on the same line.
+	// the right end, for a link (LabelLinkWidth) that follows on the same line. `icon` (a
+	// HeadingIcon, below) goes between the plus and the label, a square of the plus's side.
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
 	enum class LinkLine
 	{
 		kSame,
 		kNext
 	};
-	bool  LabelLink(const char* label, LinkLine line = LinkLine::kSame, float reserveRight = 0.0f);
-	float LabelLinkWidth(const char* label);
+	enum class HeadingIcon;
+	bool  LabelLink(const char* label, LinkLine line = LinkLine::kSame, float reserveRight = 0.0f, HeadingIcon icon = {});
+	float LabelLinkWidth(const char* label, HeadingIcon icon = {});
 
 	// A greyed "(?)" right after the label just laid out (call it right after LabelText), in
 	// LabelText's font, keeping its line's gap below. Returns true while hovered, for the
@@ -271,7 +273,7 @@ namespace Theme
 	// line, which moves the text right.
 	enum class HeadingIcon
 	{
-		kNone,
+		kNone = 0,
 		kBackpack,     // the Inventory tab's backpack
 		kDressedForm,  // an outfit row's mark of the outfit worn now
 		kBareForm,     // an outfit row's mark of the Default, the Manage Wardrobe tab's form
@@ -279,7 +281,8 @@ namespace Theme
 		kStar          // the Situations tab's star
 	};
 
-	// LabelText starting with `icon`, a square of the label's line height in its grey, and 6px.
+	// LabelText starting with `icon`, an 18px square in its grey, its drawing centred on the
+	// capitals' height, and 6px.
 	void LabelText(const char* text, HeadingIcon icon, bool opensField = true);
 
 	// A heading inside a list: a TextRow in LabelText's font, greyed, in capitals (the piece

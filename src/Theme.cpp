@@ -2424,6 +2424,24 @@ namespace
 
 	// LabelText's grey, or the lit colour while hovered: the accent in Modern, the text
 	// colour in Vanilla and Nordic.
+	// DrawPlusSquare's square with `a_icon` in place of the plus, seen as cut out of it: a drawing
+	// in lines cannot be cut out as the plus is, so its lines take the window's colour, opaque,
+	// as a faded square's must not show through them.
+	void DrawIconSquare(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color, Theme::HeadingIcon a_icon)
+	{
+		constexpr float kRounding = 4.0f;   // pixels at 1080p, as DrawPlusSquare's
+		constexpr float kInset = 0.12f;     // of the side, between the square's edge and the icon's frame
+		constexpr float kLineWidth = 2.0f;  // pixels at 1080p, about the plus's arm
+
+		const ImVec2 origin(std::floor(a_topLeft.x), std::floor(a_topLeft.y));
+		const float  s = std::floor(a_side);
+		a_draw->AddRectFilled(origin, ImVec2(origin.x + s, origin.y + s), a_color, kRounding * g_scale);
+		ImVec4 window = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
+		window.w = 1.0f;
+		DrawIconCentredOn(a_draw, a_icon, origin.x + s * kInset, origin.y + s * 0.5f, s * (1.0f - kInset * 2.0f), ImGui::ColorConvertFloat4ToU32(window),
+			(std::max)(1.0f, kLineWidth * g_scale));
+	}
+
 	ImU32 LinkColor(bool a_hovered)
 	{
 		if (!a_hovered) {
@@ -2756,13 +2774,10 @@ namespace Theme
 		FieldLineText(a_text, a_opensField, true, HeadingIcon::kNone);
 	}
 
-	float LabelLinkWidth(const char* a_label, HeadingIcon a_icon)
+	float LabelLinkWidth(const char* a_label)
 	{
 		PushSmallFont();
-		const float side = ImGui::GetFontSize();
-		const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
-		const float icon = a_icon != HeadingIcon::kNone ? side + gap : 0.0f;
-		const float width = side + gap + icon + ImGui::CalcTextSize(a_label).x;
+		const float width = ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
 		ImGui::PopFont();
 		return width;
 	}
@@ -2772,7 +2787,7 @@ namespace Theme
 		constexpr float kNextLineGap = 4.0f;  // pixels at 1080p, on top of the item spacing
 		constexpr float kLinkGap = 12.0f;     // pixels at 1080p, before the link `a_reserveRight` keeps room for
 
-		const float width = LabelLinkWidth(a_label, a_icon);
+		const float width = LabelLinkWidth(a_label);
 		PushSmallFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  side = ImGui::GetFontSize();
@@ -2792,14 +2807,12 @@ namespace Theme
 
 		const ImU32 color = LinkColor(ImGui::IsItemHovered());
 		auto*       draw = ImGui::GetWindowDrawList();
-		DrawPlusSquare(draw, topLeft, side, color);
-		float textX = topLeft.x + side + style.ItemInnerSpacing.x;
-		if (a_icon != HeadingIcon::kNone) {
-			// A square of the plus's side, its drawing centred on the square's middle.
-			DrawIconCentredOn(draw, a_icon, textX, topLeft.y + side * 0.5f, side, color, (std::max)(1.0f, g_scale));
-			textX += side + style.ItemInnerSpacing.x;
+		if (a_icon == HeadingIcon::kNone) {
+			DrawPlusSquare(draw, topLeft, side, color);
+		} else {
+			DrawIconSquare(draw, topLeft, side, color, a_icon);
 		}
-		draw->AddText(ImVec2(textX, topLeft.y), color, a_label);
+		draw->AddText(ImVec2(topLeft.x + side + style.ItemInnerSpacing.x, topLeft.y), color, a_label);
 		ImGui::PopFont();
 		return clicked;
 	}

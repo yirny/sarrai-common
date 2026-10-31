@@ -118,7 +118,7 @@ namespace Theme
 	// `line` kNext starts a line of its own under the item just laid out, 4px further down, for
 	// a second link or one under a list. `reserveRight` keeps that much room and a 12px gap at
 	// the right end, for a link (LabelLinkWidth) that follows on the same line. `icon` (a
-	// HeadingIcon, below) goes between the plus and the label, a square of the plus's side.
+	// HeadingIcon, below) takes the plus's place, its lines in the window's colour on the square.
 	// Contract: the label is shown as is and is the ImGui ID, so it must not use "##" IDs.
 	enum class LinkLine
 	{
@@ -127,7 +127,7 @@ namespace Theme
 	};
 	enum class HeadingIcon;
 	bool  LabelLink(const char* label, LinkLine line = LinkLine::kSame, float reserveRight = 0.0f, HeadingIcon icon = {});
-	float LabelLinkWidth(const char* label, HeadingIcon icon = {});
+	float LabelLinkWidth(const char* label);
 
 	// A greyed "(?)" right after the label just laid out (call it right after LabelText), in
 	// LabelText's font, keeping its line's gap below. Returns true while hovered, for the

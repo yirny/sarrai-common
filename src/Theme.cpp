@@ -2075,6 +2075,8 @@ namespace
 			return DrawDressedFormIcon;
 		case Theme::HeadingIcon::kBareForm:
 			return DrawDressFormIcon;
+		case Theme::HeadingIcon::kWardrobe:
+			return DrawWardrobeIcon;
 		case Theme::HeadingIcon::kChest:
 			return DrawChestIcon;
 		case Theme::HeadingIcon::kStar:
@@ -2097,6 +2099,8 @@ namespace
 			return 0.515f;  // the neck's top 0.10 to the feet 0.93
 		case Theme::HeadingIcon::kBareForm:
 			return 0.525f;  // the neck's top 0.12 to the feet 0.93
+		case Theme::HeadingIcon::kWardrobe:
+			return 0.51f;  // the cornice's crest 0.09 to the legs 0.93
 		case Theme::HeadingIcon::kChest:
 			return 0.57f;  // the lid's top 0.275 to the box's bottom 0.86
 		case Theme::HeadingIcon::kStar:

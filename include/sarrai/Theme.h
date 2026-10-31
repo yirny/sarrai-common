@@ -276,9 +276,9 @@ namespace Theme
 	enum class HeadingIcon
 	{
 		kNone = 0,
-		kBackpack,     // the Inventory tab's backpack
+		kBackpack,     // a backpack
 		kDressedForm,  // an outfit row's mark of the outfit worn now
-		kBareForm,     // an outfit row's mark of the Default, the Manage Wardrobe tab's form
+		kBareForm,     // an outfit row's mark of the Default, the Dress tab's form
 		kChest,        // the Chests tab's chest
 		kStar          // the Situations tab's star
 	};
@@ -521,8 +521,8 @@ namespace Theme
 	// the skin's colours.
 	enum class TabIcon
 	{
-		kInventory,   // a backpack
-		kOutfits,     // a bare dress form: a padded torso on a stand
+		kDress,       // a bare dress form: a padded torso on a stand
+		kWardrobe,    // a wardrobe: a crested cornice over two doors, on short legs
 		kSituations,  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
 		kChests,      // a chest: a domed lid on a box, a clasp where they meet
 		kAppearance   // a painter's palette

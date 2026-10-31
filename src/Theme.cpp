@@ -1202,6 +1202,14 @@ namespace
 		return (g_skin == Theme::Skin::kModern ? kAccentRuleWidth + kAccentRuleGap : kRowTextShift) * g_scale;
 	}
 
+	// How far right of the list's indent a list heading starts: in Vanilla and Nordic on the
+	// indent, in line with the label and the count line around the list, since a heading has no
+	// fill to keep its text inside; in Modern clear of the accent rule, as its rows are.
+	float ListHeadingShift()
+	{
+		return g_skin == Theme::Skin::kModern ? RowTextShift() : 0.0f;
+	}
+
 	// How far right of a list's indent a tick row's text starts: in Modern clear of
 	// the accent rule, in Vanilla and Nordic past the equipped mark's column.
 	float TickTextShift()
@@ -3465,7 +3473,7 @@ namespace Theme
 		ImGui::Dummy(ImVec2(width, SelectRowHeight()));
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		auto*       draw = ImGui::GetWindowDrawList();
-		ImVec2      text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
+		ImVec2      text(cursor.x + ListHeadingShift(), cursor.y + kSelectRowPadY * g_scale);
 		text.x += DrawHeadingIcon(draw, text, a_icon, grey);
 		const Caps caps(a_text);
 		draw->AddText(text, grey, caps.c_str());
@@ -3646,7 +3654,7 @@ namespace Theme
 		ImGui::Dummy(ImVec2(width, SelectRowHeight()));
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		auto*       draw = ImGui::GetWindowDrawList();
-		ImVec2      text(cursor.x + RowTextShift(), cursor.y + kSelectRowPadY * g_scale);
+		ImVec2      text(cursor.x + ListHeadingShift(), cursor.y + kSelectRowPadY * g_scale);
 		text.x += DrawHeadingIcon(draw, text, a_icon, grey);
 		const Caps   caps(a_text);
 		const float  markX = text.x + ImGui::CalcTextSize(caps.c_str()).x + ImGui::CalcTextSize(" ").x;

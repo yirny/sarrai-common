@@ -5,8 +5,8 @@
 //   State      - what Begin changed, kept for End
 //   Helpers    - free camera fields, the third person state, the toggle that
 //                keeps the control switches, the first / third person switch
-//                and its way back, the start at the player's eyes, the limit clamp,
-//                a frame of the sideways glide
+//                and its way back, the start at the player's eyes, the limit clamps,
+//                a frame of the sideways glide and of the wheel's ease
 //   API        - Begin / Move / CentreSideways / Gliding / End
 //
 // Entering and leaving the free camera follows Tailor 3.0's own outfit preview
@@ -34,6 +34,8 @@ namespace
 	constexpr float kLookRadiansPerPixel = 0.004f;  // of a left drag, only when the game's settings cannot be read
 	constexpr float kPanUnitsPerPixel = 0.5f;       // of a right drag
 	constexpr float kZoomUnitsPerStep = 40.0f;      // forward per wheel step
+	constexpr float kZoomEaseSeconds = 0.06f;       // of an eased wheel step, the time for the rest of it to fall to 37%
+	constexpr float kZoomDoneUnits = 0.05f;         // what is left of an eased wheel step when it counts as finished
 	constexpr float kMaxPitch = 89.0f * std::numbers::pi_v<float> / 180.0f;
 
 	// --- State ----------------------------------------------------------------
@@ -68,6 +70,12 @@ namespace
 		float                                   glideSeconds = 0.0f;                         // the glide's length; 0 for none under way
 		float                                   glideElapsed = 0.0f;                         // seconds of it gone
 		bool                                    glideTimed = false;                          // its first frame has passed, so frame lengths count
+		RE::NiPoint3                            actorStart;                                  // where the actor stood at Begin; Move's actor limits are measured from here
+		float                                   actorHeight = 0.0f;                          // units, at Begin
+		float                                   startDistance = 0.0f;                        // units from the camera to actorStart on the camera's facing, at Begin
+		float                                   startSide = 0.0f;                            // units from actorStart sideways, at Begin, always positive
+		float                                   startRise = 0.0f;                            // units above actorStart, at Begin
+		float                                   zoomLeft = 0.0f;                             // units of eased wheel steps still to move, positive towards the view
 	};
 
 	// Turns the camera's place around the actor by the angle the view just
@@ -261,6 +269,49 @@ namespace
 		}
 	}
 
+	// Pulls a place that has left the bounds around the actor back onto them, each axis on its
+	// own. Each bound stretches to Begin's own place, so a far start never jumps at the first
+	// input; a place inside them is not touched. True when the distance bound stopped it.
+	bool ClampToActor(RE::NiPoint3& place, const RE::NiPoint3& right, const RE::NiPoint3& level, const FreeCamera::MoveLimits& limits)
+	{
+		if (limits.maxActorDistance <= 0.0f) {
+			return false;
+		}
+		const auto  offset = place - g_session.actorStart;
+		const float distance = -offset.Dot(level);
+		const float keptDistance = std::clamp(distance, (std::min)(limits.minActorDistance, g_session.startDistance),
+			(std::max)(limits.maxActorDistance, g_session.startDistance));
+		const float side = offset.Dot(right);
+		const float maxSide = (std::max)(limits.sideSlope * keptDistance, g_session.startSide);
+		const float maxRise = (std::max)(limits.upperHeight * g_session.actorHeight + limits.riseSlope * keptDistance, g_session.startRise);
+		const float minRise = (std::min)(limits.lowerHeight * g_session.actorHeight - limits.riseSlope * keptDistance, g_session.startRise);
+		place += level * (distance - keptDistance);
+		place += right * (std::clamp(side, -maxSide, maxSide) - side);
+		place.z += std::clamp(offset.z, minRise, maxRise) - offset.z;
+		return keptDistance != distance;
+	}
+
+	// Adds this frame's wheel steps and returns the units to move along the view now. With a
+	// zoomShare the steps ease out: each frame takes a part of what is left, so a long frame
+	// finishes them and never overshoots, and steps in quick succession run together.
+	float StepZoom(const FreeCamera::ViewInput& input, float scale, const RE::NiPoint3& place, const RE::NiPoint3& level, const FreeCamera::MoveLimits& limits)
+	{
+		if (limits.zoomShare <= 0.0f) {
+			return input.zoomSteps * kZoomUnitsPerStep * scale;
+		}
+		if (input.zoomSteps != 0.0f) {
+			const float distance = (std::max)(-(place - g_session.actorStart).Dot(level), limits.minActorDistance);
+			g_session.zoomLeft += input.zoomSteps * limits.zoomShare * distance * scale;
+		}
+		float part = g_session.zoomLeft * (1.0f - std::exp(-input.seconds / kZoomEaseSeconds));
+		g_session.zoomLeft -= part;
+		if (std::abs(g_session.zoomLeft) < kZoomDoneUnits) {
+			part += g_session.zoomLeft;
+			g_session.zoomLeft = 0.0f;
+		}
+		return part;
+	}
+
 	// Moves the camera by the part of the glide that falls in this frame, fast at first and
 	// slowing to a stop (an ease-out cubic). A long frame finishes it and never overshoots.
 	// The first frame counts as no time: no ImGui frame runs while the window is closed, so
@@ -281,7 +332,6 @@ namespace
 		g_session.anchor += step;
 		if (t >= 1.0f) {
 			g_session.glideSeconds = 0.0f;
-			g_gliding.store(false);
 		}
 	}
 }
@@ -338,10 +388,19 @@ namespace FreeCamera
 		session.invertY = ReadInvertY();
 		session.lookRadiansPerPixel = ReadLookRadiansPerPixel();
 		session.anchor = free->translation;
+		session.actorStart = actor.GetPosition();
+		session.actorHeight = actor.GetHeight();
+		const auto         startOffset = free->translation - session.actorStart;
+		const RE::NiPoint3 startLevel{ std::sin(free->rotation.y), std::cos(free->rotation.y), 0.0f };
+		const RE::NiPoint3 startRight{ std::cos(free->rotation.y), -std::sin(free->rotation.y), 0.0f };
+		session.startDistance = -startOffset.Dot(startLevel);
+		session.startSide = std::abs(startOffset.Dot(startRight));
+		session.startRise = startOffset.z;
 		session.active = true;
 		g_session = std::move(session);
-		logger::info("Free camera on {:08X}{} (invert Y: {}, look {:.6f} rad/px)", actor.GetFormID(), startFromFirstPerson ? ", from the eyes" : "",
-			g_session.invertY ? "on" : "off", g_session.lookRadiansPerPixel);
+		logger::info("Free camera on {:08X}{} (invert Y: {}, look {:.6f} rad/px, {:.1f} units away, {:.1f} sideways, {:+.1f} up, actor {:.1f} tall)", actor.GetFormID(),
+			startFromFirstPerson ? ", from the eyes" : "", g_session.invertY ? "on" : "off", g_session.lookRadiansPerPixel, g_session.startDistance, g_session.startSide,
+			g_session.startRise, g_session.actorHeight);
 		return true;
 	}
 
@@ -382,7 +441,7 @@ namespace FreeCamera
 
 		const float step = kMoveUnitsPerSecond * scale * (input.slow ? kSlowFactor : 1.0f) * input.seconds;
 		auto        move = forward * (input.moveForward * step);
-		move += (limits.levelZoom ? level : forward) * (input.zoomSteps * kZoomUnitsPerStep * scale);
+		move += (limits.levelZoom ? level : forward) * StepZoom(input, scale, free->translation, level, limits);
 		move += up * (input.moveUp * step);
 		if (limits.allowLateral) {
 			move += right * (input.moveRight * step);
@@ -394,6 +453,10 @@ namespace FreeCamera
 		// After this frame's turn: the remaining glide is along the right the camera has now.
 		StepGlide(*free, right, input.seconds);
 		ClampToAnchor(free->translation, g_session.anchor, limits);
+		if (ClampToActor(free->translation, right, level, limits)) {
+			g_session.zoomLeft = 0.0f;  // at the end of the range, so the next step the other way starts at once
+		}
+		g_gliding.store(g_session.glideSeconds > 0.0f || g_session.zoomLeft != 0.0f);
 	}
 
 	// Moving along Move's right vector changes neither the actor's depth nor its height on

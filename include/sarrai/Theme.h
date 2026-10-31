@@ -117,8 +117,7 @@ namespace Theme
 	// (the text colour in Vanilla and Nordic, the accent in Modern). Returns true when clicked.
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// `line` kNext starts a line of its own under the item just laid out, 4px further down, for
-	// a second link or one under a list. `reserveRight` keeps that much room and a 12px gap at
-	// the right end, for a link (LabelLinkWidth) that follows on the same line. `icon` (a
+	// a second link or one under a list. `icon` (a
 	// HeadingIcon, below) and `afterIcon` follow the label, for an icon inside the words:
 	// "[+] Add from <icon> Wardrobe...", the icon a square of the plus's side, 1px lines at 1080p.
 	// Those two are in the palette's emphasis, at 0.85 of it until hovered.
@@ -130,8 +129,7 @@ namespace Theme
 		kNext
 	};
 	enum class HeadingIcon;
-	bool  LabelLink(const char* label, LinkLine line = LinkLine::kSame, float reserveRight = 0.0f, HeadingIcon icon = {}, const char* afterIcon = nullptr);
-	float LabelLinkWidth(const char* label, HeadingIcon icon = {}, const char* afterIcon = nullptr);
+	bool LabelLink(const char* label, LinkLine line = LinkLine::kSame, HeadingIcon icon = {}, const char* afterIcon = nullptr);
 
 	// A greyed "(?)" right after the label just laid out (call it right after LabelText), in
 	// LabelText's font, keeping its line's gap below. Returns true while hovered, for the
@@ -245,8 +243,9 @@ namespace Theme
 	// may repeat. Rows with icons start their first column at RowIconRoom.
 	struct RowIcon
 	{
-		std::string_view key;      // an IconFile's key; "" for none
-		std::uint32_t    rgb = 0;  // the white icon's tint, 0xRRGGBB
+		std::string_view key;        // an IconFile's key; "" for none
+		std::uint32_t    rgb = 0;    // the white icon's tint, 0xRRGGBB
+		HeadingIcon      line = {};  // OutfitRow only: this line drawing in the text colour, in place of `key`
 	};
 	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked, const RowIcon& icon = {});
 
@@ -286,7 +285,7 @@ namespace Theme
 		kStar          // the Situations tab's star
 	};
 
-	// A part of HeadingText's run subtitle. With `icon` (a square as LabelText draws it) or
+	// A part of HeadingText's run subtitle or of HeadingRunText's line. With `icon` (a square as LabelText draws it) or
 	// `rowIconKey` (an IconFile's key, sized as OutfitRow draws it) and 6px before it, the text is
 	// a name, it and its icon in the palette's emphasis at 0.85; without either it is greyed text.
 	struct SubtitleRun
@@ -300,6 +299,12 @@ namespace Theme
 	// fit are cut with an ellipsis, the first name first. Nordic centres the line.
 	// Contract: the texts are shown as they are.
 	void HeadingText(const char* text, std::span<const SubtitleRun> subtitle);
+
+	// HeadingText whose own line is `title`'s parts, as that subtitle lays them out, in the
+	// heading font, with no subtitle: a line icon about as tall as the capitals, a row icon of
+	// the heading's text height, the parts that are no name in the text colour.
+	// Contract: the texts are shown as they are.
+	void HeadingRunText(std::span<const SubtitleRun> title);
 
 	// LabelText starting with `icon`, an 18px square in its grey, its drawing centred on the
 	// capitals' height, and 6px.
@@ -328,7 +333,8 @@ namespace Theme
 		kNone,  // no grip, the icon where a tick row's text starts (the outfit lists)
 		kLine,  // no grip, the text 22px in (the Situation List's line for the Default's items)
 		kEdge,  // where the text after a fold chevron starts (Manage Situations' outfit list)
-		kName   // 14px in from the row's left edge (the Situation List, level with its headings' names)
+		kName,  // 14px in from the row's left edge (the Situation List, level with its headings' names)
+		kFlush  // no grip, the icon where a list heading's text starts, no room for a select mark: for lists that never select a row
 	};
 
 	// A list heading rule (SituationHeading): in Vanilla and Nordic, SkyUI's MCM
@@ -411,9 +417,9 @@ namespace Theme
 	std::array<float, 2> OutfitColumns(Grip grip);
 
 	// A grey line in an outfit row's place, such as an empty list's hint: OutfitRowHeight tall,
-	// the text where OutfitRow puts the icon without a grip, with no fill or click.
+	// the text where OutfitRow puts the icon with `grip`, with no fill or click.
 	// Contract: inside BeginList, laid out with no item spacing, as the outfit rows are.
-	void HintRow(const char* text);
+	void HintRow(const char* text, Grip grip = Grip::kNone);
 
 	// A see-through copy of the outfit row just drawn, shown while it is dragged: the popup
 	// background with the grip's dots, the icon (none for nullptr) and the name, no fills or

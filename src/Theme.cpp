@@ -1230,11 +1230,13 @@ namespace
 	// the accent rule, in Vanilla and Nordic past the equipped mark's column.
 	float TickTextShift()
 	{
+		constexpr float kTickMarkGapTrim = 2.0f;  // pixels at 1080p, off the inner spacing after the mark
+
 		if (g_skin == Theme::Skin::kModern) {
 			return RowTextShift();
 		}
 		const Ornament& mark = g_skin == Theme::Skin::kNordic ? g_nordicEquipped : g_vanillaEquipped;
-		return mark.size.x * g_scale + ImGui::GetStyle().ItemInnerSpacing.x;
+		return (mark.size.x - kTickMarkGapTrim) * g_scale + ImGui::GetStyle().ItemInnerSpacing.x;
 	}
 
 	// One row of a Theme::BeginList list, laid out as an invisible button that
@@ -2316,7 +2318,8 @@ namespace
 	}
 
 	// From an outfit row's left edge to its icon (pixels on the back buffer): where a tick
-	// row's text starts (TickTextShift), kOutfitRowPadX for Grip::kLine, or on a draggable row
+	// row's text starts (TickTextShift), kOutfitRowPadX for Grip::kLine, where a list heading's
+	// text starts (ListHeadingShift) for Grip::kFlush, or on a draggable row
 	// kGripTextGap past its grip's dots (DrawGrip).
 	float RowTextInset(Theme::Grip a_grip)
 	{
@@ -2325,6 +2328,8 @@ namespace
 			return TickTextShift();
 		case Theme::Grip::kLine:
 			return kOutfitRowPadX * g_scale;
+		case Theme::Grip::kFlush:
+			return ListHeadingShift();
 		case Theme::Grip::kEdge:
 		case Theme::Grip::kName:
 			break;
@@ -2443,6 +2448,11 @@ namespace
 			return 0.0f;
 		}
 		const float side = OutfitIconSide();
+		if (a_icon->line != Theme::HeadingIcon::kNone) {
+			// 1px lines at 1080p, through the style alpha.
+			DrawIconCentredOn(a_draw, a_icon->line, a_left, a_midY, side, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
+			return side + kRowIconGap * g_scale;
+		}
 		DrawOutfitIconAt(a_draw, ImVec2(a_left, a_midY - side * 0.5f), side, *a_icon);
 		return OutfitIconRoom();
 	}
@@ -2695,23 +2705,31 @@ namespace Theme
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - a_width) * 0.5f));
 		}
 
-		// The room a subtitle part's icon takes before its text, the gap included.
-		float SubtitleIconRoom(const SubtitleRun& a_run)
+		// How a line of runs differs between a subtitle and a heading.
+		struct RunLook
+		{
+			ImU32 plain;      // the parts that are no name
+			float iconSide;   // a line icon's square, on the back buffer
+			float iconThick;  // its lines
+		};
+
+		// The room a part's icon takes before its text, the gap included.
+		float RunIconRoom(const SubtitleRun& a_run, const RunLook& a_look)
 		{
 			if (a_run.icon != HeadingIcon::kNone) {
-				return (kHeadingIconSide + kRowIconGap) * g_scale;
+				return a_look.iconSide + kRowIconGap * g_scale;
 			}
 			return a_run.rowIconKey.empty() ? 0.0f : OutfitIconRoom();
 		}
 
-		// The parts of a run subtitle on one line, at the cursor; the last name's cut leaves
-		// whatever still does not fit to the window's clipping.
+		// The parts on one line, at the cursor; the last name's cut leaves whatever still does
+		// not fit to the window's clipping.
 		// Contract: in the font the line is laid out in, with ItemSpacing the gap below it.
-		void DrawSubtitleRuns(std::span<const SubtitleRun> a_runs)
+		void DrawRuns(std::span<const SubtitleRun> a_runs, const RunLook& a_look)
 		{
 			float total = 0.0f;
 			for (const auto& run : a_runs) {
-				total += SubtitleIconRoom(run) + ImGui::CalcTextSize(run.text).x;
+				total += RunIconRoom(run, a_look) + ImGui::CalcTextSize(run.text).x;
 			}
 			const float avail = ImGui::GetContentRegionAvail().x;
 			if (g_skin == Skin::kNordic) {
@@ -2722,19 +2740,18 @@ namespace Theme
 			ImGui::Dummy(ImVec2((std::min)(total, avail), lineHeight));
 
 			auto*        draw = ImGui::GetWindowDrawList();
-			const ImU32  grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 			const ImVec4 emphasis = EmphasisColor(false);
 			float        over = (std::max)(0.0f, total - avail);
 			float        x = topLeft.x;
 			for (const auto& run : a_runs) {
 				const bool named = run.icon != HeadingIcon::kNone || !run.rowIconKey.empty();
 				if (run.icon != HeadingIcon::kNone) {
-					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), kHeadingIconSide * g_scale, ImGui::GetColorU32(emphasis), (std::max)(1.0f, g_scale));  // 1px lines at 1080p
+					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), a_look.iconSide, ImGui::GetColorU32(emphasis), a_look.iconThick);
 				} else if (named) {
 					const float side = OutfitIconSide();
 					DrawTintedOutfitIcon(draw, run.rowIconKey, ImVec2(x, topLeft.y + (lineHeight - side) * 0.5f), side, ImGui::GetColorU32(emphasis));
 				}
-				x += SubtitleIconRoom(run);
+				x += RunIconRoom(run, a_look);
 
 				const ImVec2 size = ImGui::CalcTextSize(run.text);
 				const float  cut = named ? (std::min)(over, (std::max)(0.0f, size.x - ImGui::CalcTextSize("...").x)) : 0.0f;
@@ -2745,15 +2762,25 @@ namespace Theme
 					ImGui::RenderTextEllipsis(draw, ImVec2(x, topLeft.y), ImVec2(right, topLeft.y + size.y), right, run.text, nullptr, &size);
 					ImGui::PopStyleColor();
 				} else {
-					draw->AddText(ImVec2(x, topLeft.y), named ? ImGui::GetColorU32(emphasis) : grey, run.text);
+					draw->AddText(ImVec2(x, topLeft.y), named ? ImGui::GetColorU32(emphasis) : a_look.plain, run.text);
 				}
 				x = right;
 			}
 		}
 
-		// The heading line, then `a_drawSubtitle` when `a_subtitled`, then Nordic's rule.
-		template <class DrawSubtitle>
-		void DrawHeadingLines(const char* a_text, bool a_subtitled, DrawSubtitle&& a_drawSubtitle)
+		// A heading line of plain text, in the heading's font (DrawHeadingLines).
+		void DrawHeadingLine(const char* a_text)
+		{
+			if (g_skin == Skin::kNordic) {
+				CentreOnLine(ImGui::CalcTextSize(a_text).x);
+			}
+			ImGui::TextUnformatted(a_text);
+		}
+
+		// `a_drawLine`, the heading line, in the heading's font, then `a_drawSubtitle` when
+		// `a_subtitled`, then Nordic's rule.
+		template <class DrawLine, class DrawSubtitle>
+		void DrawHeadingLines(DrawLine&& a_drawLine, bool a_subtitled, DrawSubtitle&& a_drawSubtitle)
 		{
 			const auto&     files = FontFilesOf(g_skin);
 			const auto&     loaded = LoadedFontsOf(g_skin);
@@ -2777,11 +2804,8 @@ namespace Theme
 			if (ownFont) {
 				ImGui::PushFont(loaded.heading, files.heading.size);
 			}
-			if (nordic) {
-				CentreOnLine(ImGui::CalcTextSize(a_text).x);
-			}
 			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, a_subtitled ? aboveSubtitle : afterLast);
-			ImGui::TextUnformatted(a_text);
+			a_drawLine();
 			ImGui::PopStyleVar();
 			if (ownFont) {
 				ImGui::PopFont();
@@ -2803,7 +2827,7 @@ namespace Theme
 
 	void HeadingText(const char* a_text, const char* a_subtitle)
 	{
-		DrawHeadingLines(a_text, a_subtitle && *a_subtitle, [a_subtitle] {
+		DrawHeadingLines([a_text] { DrawHeadingLine(a_text); }, a_subtitle && *a_subtitle, [a_subtitle] {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			// Nordic centres a subtitle that fits on one line; a longer one wraps from the left.
 			const float width = ImGui::CalcTextSize(a_subtitle).x;
@@ -2813,13 +2837,26 @@ namespace Theme
 			} else {
 				ImGui::TextWrapped("%s", a_subtitle);
 			}
-			ImGui::PopStyleColor();
-		});
+			ImGui::PopStyleColor(); });
 	}
 
 	void HeadingText(const char* a_text, std::span<const SubtitleRun> a_subtitle)
 	{
-		DrawHeadingLines(a_text, !a_subtitle.empty(), [a_subtitle] { DrawSubtitleRuns(a_subtitle); });
+		DrawHeadingLines([a_text] { DrawHeadingLine(a_text); }, !a_subtitle.empty(), [a_subtitle] {
+			DrawRuns(a_subtitle, { ImGui::GetColorU32(ImGuiCol_TextDisabled), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale) });  // 1px lines at 1080p
+		});
+	}
+
+	void HeadingRunText(std::span<const SubtitleRun> a_title)
+	{
+		constexpr float kHeadingIconRatio = 1.2f;      // of the heading font's size: the chest's drawing, 0.585 of its square, comes out about the capitals' height
+		constexpr float kHeadingIconLineWidth = 1.5f;  // pixels at 1080p, as the tabs'
+
+		DrawHeadingLines(
+			[a_title] {
+				DrawRuns(a_title, { ImGui::GetColorU32(ImGuiCol_Text), std::round(ImGui::GetFontSize() * kHeadingIconRatio), (std::max)(1.0f, kHeadingIconLineWidth * g_scale) });
+			},
+			false, [] {});
 	}
 
 	float HeadingTabsWidth(std::span<const char* const> a_labels)
@@ -2926,25 +2963,27 @@ namespace Theme
 		FieldLineText(a_text, a_opensField, true, HeadingIcon::kNone);
 	}
 
-	float LabelLinkWidth(const char* a_label, HeadingIcon a_icon, const char* a_afterIcon)
+	namespace
 	{
-		PushSmallFont();
-		const float side = ImGui::GetFontSize();
-		float       width = side + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
-		if (a_icon != HeadingIcon::kNone) {
-			width += side + kLinkIconGap * 2.0f * g_scale;
+		float LabelLinkWidth(const char* a_label, HeadingIcon a_icon, const char* a_afterIcon)
+		{
+			PushSmallFont();
+			const float side = ImGui::GetFontSize();
+			float       width = side + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
+			if (a_icon != HeadingIcon::kNone) {
+				width += side + kLinkIconGap * 2.0f * g_scale;
+			}
+			if (a_afterIcon) {
+				width += ImGui::CalcTextSize(a_afterIcon).x;
+			}
+			ImGui::PopFont();
+			return width;
 		}
-		if (a_afterIcon) {
-			width += ImGui::CalcTextSize(a_afterIcon).x;
-		}
-		ImGui::PopFont();
-		return width;
 	}
 
-	bool LabelLink(const char* a_label, LinkLine a_line, float a_reserveRight, HeadingIcon a_icon, const char* a_afterIcon)
+	bool LabelLink(const char* a_label, LinkLine a_line, HeadingIcon a_icon, const char* a_afterIcon)
 	{
 		constexpr float kNextLineGap = 4.0f;  // pixels at 1080p, on top of the item spacing
-		constexpr float kLinkGap = 12.0f;     // pixels at 1080p, before the link `a_reserveRight` keeps room for
 
 		const float width = LabelLinkWidth(a_label, a_icon, a_afterIcon);
 		PushSmallFont();
@@ -2957,8 +2996,7 @@ namespace Theme
 		} else {
 			ImGui::SameLine();
 		}
-		const float reserved = a_reserveRight > 0.0f ? a_reserveRight + kLinkGap * g_scale : 0.0f;
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width - reserved));
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		PushLabelSpacing();  // the line's gap below stays LabelText's
 		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)));
@@ -3237,23 +3275,28 @@ namespace Theme
 			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), rounding);
 			color = ImGui::GetColorU32(ImGuiCol_Text);
 		}
-		const IconFrame frame{ ImVec2(topLeft.x + side * kIconInset, topLeft.y + side * kIconInset), side * (1.0f - kIconInset * 2.0f) };
-		const float     thick = (std::max)(1.0f, kLineWidth * g_scale);
+		const float left = topLeft.x + side * kIconInset;
+		const float iconSide = side * (1.0f - kIconInset * 2.0f);
+		const float thick = (std::max)(1.0f, kLineWidth * g_scale);
+		// The drawing's own middle (HeadingIconCentre) on the fill's, which its frame's is not.
+		const auto drawCentred = [&](HeadingIcon a_drawing) {
+			DrawIconCentredOn(draw, a_drawing, left, topLeft.y + side * 0.5f, iconSide, color, thick);
+		};
 		switch (a_icon) {
 		case TabIcon::kDress:
-			DrawDressFormIcon(draw, frame, color, thick);
+			drawCentred(HeadingIcon::kBareForm);
 			break;
 		case TabIcon::kWardrobe:
-			DrawWardrobeIcon(draw, frame, color, thick);
+			drawCentred(HeadingIcon::kWardrobe);
 			break;
 		case TabIcon::kSituations:
-			DrawStarIcon(draw, frame, color, thick);
+			drawCentred(HeadingIcon::kStar);
 			break;
 		case TabIcon::kChests:
-			DrawChestIcon(draw, frame, color, thick);
+			drawCentred(HeadingIcon::kChest);
 			break;
 		case TabIcon::kAppearance:
-			DrawPaletteIcon(draw, frame, color, thick);
+			DrawPaletteIcon(draw, IconFrame{ ImVec2(left, topLeft.y + side * kIconInset), iconSide }, color, thick);
 			break;
 		}
 		if (hovered) {
@@ -3892,11 +3935,11 @@ namespace Theme
 		return row.pressed;
 	}
 
-	void HintRow(const char* a_text)
+	void HintRow(const char* a_text, Grip a_grip)
 	{
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, OutfitRowHeight()));
-		const float textX = ImGui::GetWindowPos().x + g_listReach.x + RowTextInset(Grip::kNone);
+		const float textX = ImGui::GetWindowPos().x + g_listReach.x + RowTextInset(a_grip);
 		const float textY = cursor.y + ListPaddingY() * 0.5f + kOutfitRowPadY * g_scale;
 		ImGui::GetWindowDrawList()->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_TextDisabled), a_text);
 	}

@@ -2039,6 +2039,31 @@ namespace
 		a_draw->AddRect(a_frame.At(0.44f, kLidEdge - 0.04f), a_frame.At(0.56f, kLidEdge + 0.12f), a_color, 0.02f * s, ImDrawFlags_None, a_thick);
 	}
 
+	// A wardrobe: a cornice wider than the body, rising to a crest over a straight underside,
+	// above two doors with a knob each, clear of the seam between them, on two short legs.
+	void DrawWardrobeIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		constexpr float kBodyTop = 0.26f;
+		constexpr float kBodyBottom = 0.86f;
+		constexpr float kLegBottom = 0.93f;
+		constexpr float kKnobY = 0.54f;
+		constexpr float kKnobRadius = 0.03f;
+
+		const float s = a_frame.side;
+		a_draw->PathLineTo(a_frame.At(0.18f, kBodyTop));
+		a_draw->PathLineTo(a_frame.At(0.18f, 0.22f));
+		a_draw->PathBezierCubicCurveTo(a_frame.At(0.30f, 0.22f), a_frame.At(0.36f, 0.09f), a_frame.At(0.50f, 0.09f));
+		a_draw->PathBezierCubicCurveTo(a_frame.At(0.64f, 0.09f), a_frame.At(0.70f, 0.22f), a_frame.At(0.82f, 0.22f));
+		a_draw->PathLineTo(a_frame.At(0.82f, kBodyTop));
+		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
+		a_draw->AddRect(a_frame.At(0.24f, kBodyTop), a_frame.At(0.76f, kBodyBottom), a_color, 0.02f * s, ImDrawFlags_None, a_thick);
+		a_draw->AddLine(a_frame.At(0.50f, kBodyTop), a_frame.At(0.50f, kBodyBottom), a_color, a_thick);
+		a_draw->AddCircleFilled(a_frame.At(0.39f, kKnobY), kKnobRadius * s, a_color);
+		a_draw->AddCircleFilled(a_frame.At(0.61f, kKnobY), kKnobRadius * s, a_color);
+		a_draw->AddLine(a_frame.At(0.30f, kBodyBottom), a_frame.At(0.30f, kLegBottom), a_color, a_thick);
+		a_draw->AddLine(a_frame.At(0.70f, kBodyBottom), a_frame.At(0.70f, kLegBottom), a_color, a_thick);
+	}
+
 	// What draws a Theme::HeadingIcon; nullptr for none.
 	using IconDrawer = void (*)(ImDrawList*, const IconFrame&, ImU32, float);
 	IconDrawer HeadingIconDrawer(Theme::HeadingIcon a_icon)
@@ -3070,11 +3095,11 @@ namespace Theme
 		const IconFrame frame{ ImVec2(topLeft.x + side * kIconInset, topLeft.y + side * kIconInset), side * (1.0f - kIconInset * 2.0f) };
 		const float     thick = (std::max)(1.0f, kLineWidth * g_scale);
 		switch (a_icon) {
-		case TabIcon::kInventory:
-			DrawBackpackIcon(draw, frame, color, thick);
-			break;
-		case TabIcon::kOutfits:
+		case TabIcon::kDress:
 			DrawDressFormIcon(draw, frame, color, thick);
+			break;
+		case TabIcon::kWardrobe:
+			DrawWardrobeIcon(draw, frame, color, thick);
 			break;
 		case TabIcon::kSituations:
 			DrawStarIcon(draw, frame, color, thick);

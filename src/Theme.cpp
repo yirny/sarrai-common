@@ -2371,17 +2371,23 @@ namespace
 		return found != g_rowIcons.end() ? &found->second : nullptr;
 	}
 
-	// The white icon `a_icon` tinted with its colour, `a_side` square from `a_topLeft`, through
-	// the style alpha. Nothing when OutfitIconTexture has none.
-	void DrawOutfitIconAt(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, const Theme::RowIcon& a_icon)
+	// The white icon of `a_key` tinted `a_tint`, `a_side` square from `a_topLeft`. Nothing when
+	// OutfitIconTexture has none.
+	void DrawTintedOutfitIcon(ImDrawList* a_draw, std::string_view a_key, ImVec2 a_topLeft, float a_side, ImU32 a_tint)
 	{
-		const auto* texture = OutfitIconTexture(a_icon.key);
+		const auto* texture = OutfitIconTexture(a_key);
 		if (!texture) {
 			return;
 		}
 		const ImVec2 topLeft(std::round(a_topLeft.x), std::round(a_topLeft.y));
-		const ImU32  tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
-		a_draw->AddImage(texture->Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+		a_draw->AddImage(texture->Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), a_tint);
+	}
+
+	// The white icon `a_icon` tinted with its colour, through the style alpha.
+	void DrawOutfitIconAt(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, const Theme::RowIcon& a_icon)
+	{
+		const ImU32 tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
+		DrawTintedOutfitIcon(a_draw, a_icon.key, a_topLeft, a_side, tint);
 	}
 
 	// An outfit row's icon: a square of the text height.
@@ -2664,7 +2670,7 @@ namespace Theme
 			if (a_run.icon != HeadingIcon::kNone) {
 				return (kHeadingIconSide + kRowIconGap) * g_scale;
 			}
-			return a_run.rowIcon.key.empty() ? 0.0f : OutfitIconRoom();
+			return a_run.rowIconKey.empty() ? 0.0f : OutfitIconRoom();
 		}
 
 		// The parts of a run subtitle on one line, at the cursor; the last name's cut leaves
@@ -2690,11 +2696,12 @@ namespace Theme
 			float        over = (std::max)(0.0f, total - avail);
 			float        x = topLeft.x;
 			for (const auto& run : a_runs) {
-				const bool named = run.icon != HeadingIcon::kNone || !run.rowIcon.key.empty();
+				const bool named = run.icon != HeadingIcon::kNone || !run.rowIconKey.empty();
 				if (run.icon != HeadingIcon::kNone) {
 					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), kHeadingIconSide * g_scale, ImGui::GetColorU32(emphasis), (std::max)(1.0f, g_scale));  // 1px lines at 1080p
 				} else if (named) {
-					DrawOutfitIcon(draw, x, topLeft.y + lineHeight * 0.5f, &run.rowIcon);
+					const float side = OutfitIconSide();
+					DrawTintedOutfitIcon(draw, run.rowIconKey, ImVec2(x, topLeft.y + (lineHeight - side) * 0.5f), side, ImGui::GetColorU32(emphasis));
 				}
 				x += SubtitleIconRoom(run);
 

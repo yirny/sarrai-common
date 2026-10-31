@@ -1975,40 +1975,71 @@ namespace
 		float  side;
 
 		ImVec2 At(float a_x, float a_y) const { return ImVec2(min.x + a_x * side, min.y + a_y * side); }
+
+		// For a left-right symmetric icon: its centre column's middle and its top row on whole
+		// pixels. Pixel() is a pixel's middle, as many whole pixels off the centre column to the
+		// left as to the right, for what must stay crisp and mirrored at any side; Curve() is
+		// the exact fraction from the same axis, for a curve's control points.
+		// Contract: stroke them through the path API (StrokeLine, StrokeRect). AddLine shifts
+		// its points by half a pixel and AddRect shrinks its rect by that, which takes them off
+		// this axis.
+		ImVec2 Pixel(float a_x, float a_y) const
+		{
+			return ImVec2(CentreColumn() + std::round((a_x - 0.5f) * side), std::round(min.y) + std::round(a_y * side) + 0.5f);
+		}
+		ImVec2 Curve(float a_x, float a_y) const { return ImVec2(CentreColumn() + (a_x - 0.5f) * side, std::round(min.y) + a_y * side + 0.5f); }
+
+	private:
+		float CentreColumn() const { return std::round(min.x + side * 0.5f) + 0.5f; }
 	};
+
+	// A straight line along exactly these points (IconFrame::Pixel).
+	void StrokeLine(ImDrawList* a_draw, ImVec2 a_from, ImVec2 a_to, ImU32 a_color, float a_thick)
+	{
+		a_draw->PathLineTo(a_from);
+		a_draw->PathLineTo(a_to);
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+	}
+
+	// A rounded rectangle whose outline runs along exactly these corners (IconFrame::Pixel).
+	void StrokeRect(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_rounding, ImU32 a_color, float a_thick)
+	{
+		a_draw->PathRect(a_min, a_max, a_rounding);
+		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
+	}
 
 	// A backpack: its body with the flap's edge across it and a front pocket, a handle on top.
 	void DrawBackpackIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
 		const float s = a_frame.side;
-		a_draw->AddRect(a_frame.At(0.22f, 0.30f), a_frame.At(0.78f, 0.88f), a_color, 0.10f * s, ImDrawFlags_None, a_thick);
-		a_draw->PathArcTo(a_frame.At(0.50f, 0.30f), 0.11f * s, IM_PI, 2.0f * IM_PI);
+		StrokeRect(a_draw, a_frame.Pixel(0.22f, 0.30f), a_frame.Pixel(0.78f, 0.88f), 0.10f * s, a_color, a_thick);
+		a_draw->PathArcTo(a_frame.Curve(0.50f, 0.30f), 0.11f * s, IM_PI, 2.0f * IM_PI);
 		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
-		a_draw->AddLine(a_frame.At(0.22f, 0.48f), a_frame.At(0.78f, 0.48f), a_color, a_thick);
-		a_draw->AddRect(a_frame.At(0.34f, 0.62f), a_frame.At(0.66f, 0.79f), a_color, 0.04f * s, ImDrawFlags_None, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.22f, 0.48f), a_frame.Pixel(0.78f, 0.48f), a_color, a_thick);
+		StrokeRect(a_draw, a_frame.Pixel(0.34f, 0.62f), a_frame.Pixel(0.66f, 0.79f), 0.04f * s, a_color, a_thick);
 	}
 
 	// The stand's pole and two feet under a torso ending at `a_bottom` (of the side).
 	void DrawStandFeet(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick, float a_bottom)
 	{
-		a_draw->AddLine(a_frame.At(0.50f, a_bottom), a_frame.At(0.50f, 0.86f), a_color, a_thick);
-		a_draw->AddLine(a_frame.At(0.50f, 0.86f), a_frame.At(0.34f, 0.93f), a_color, a_thick);
-		a_draw->AddLine(a_frame.At(0.50f, 0.86f), a_frame.At(0.66f, 0.93f), a_color, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.50f, a_bottom), a_frame.Pixel(0.50f, 0.86f), a_color, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.86f), a_frame.Pixel(0.34f, 0.93f), a_color, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.86f), a_frame.Pixel(0.66f, 0.93f), a_color, a_thick);
 	}
 
 	// A bare dress form: a padded torso with a neck, each shoulder one arc from the neck to
 	// the underarm, on a pole with two feet.
 	void DrawDressFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		a_draw->PathLineTo(a_frame.At(0.44f, 0.12f));
-		a_draw->PathLineTo(a_frame.At(0.56f, 0.12f));
-		a_draw->PathLineTo(a_frame.At(0.57f, 0.18f));
-		a_draw->PathBezierQuadraticCurveTo(a_frame.At(0.79f, 0.24f), a_frame.At(0.66f, 0.42f));
-		for (const auto p : { a_frame.At(0.62f, 0.52f), a_frame.At(0.68f, 0.62f), a_frame.At(0.66f, 0.68f), a_frame.At(0.34f, 0.68f),
-				 a_frame.At(0.32f, 0.62f), a_frame.At(0.38f, 0.52f), a_frame.At(0.34f, 0.42f) }) {
+		a_draw->PathLineTo(a_frame.Pixel(0.44f, 0.12f));
+		a_draw->PathLineTo(a_frame.Pixel(0.56f, 0.12f));
+		a_draw->PathLineTo(a_frame.Pixel(0.57f, 0.18f));
+		a_draw->PathBezierQuadraticCurveTo(a_frame.Curve(0.79f, 0.24f), a_frame.Pixel(0.66f, 0.42f));
+		for (const auto p : { a_frame.Pixel(0.62f, 0.52f), a_frame.Pixel(0.68f, 0.62f), a_frame.Pixel(0.66f, 0.68f), a_frame.Pixel(0.34f, 0.68f),
+				 a_frame.Pixel(0.32f, 0.62f), a_frame.Pixel(0.38f, 0.52f), a_frame.Pixel(0.34f, 0.42f) }) {
 			a_draw->PathLineTo(p);
 		}
-		a_draw->PathBezierQuadraticCurveTo(a_frame.At(0.21f, 0.24f), a_frame.At(0.43f, 0.18f));
+		a_draw->PathBezierQuadraticCurveTo(a_frame.Curve(0.21f, 0.24f), a_frame.Pixel(0.43f, 0.18f));
 		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
 		DrawStandFeet(a_draw, a_frame, a_color, a_thick, 0.68f);
 	}
@@ -2017,16 +2048,16 @@ namespace
 	// neck's sides running down into the collar, on the stand.
 	void DrawDressedFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		const std::array<ImVec2, 4> neck{ a_frame.At(0.44f, 0.22f), a_frame.At(0.44f, 0.10f), a_frame.At(0.56f, 0.10f), a_frame.At(0.56f, 0.22f) };
+		const std::array<ImVec2, 4> neck{ a_frame.Pixel(0.44f, 0.22f), a_frame.Pixel(0.44f, 0.10f), a_frame.Pixel(0.56f, 0.10f), a_frame.Pixel(0.56f, 0.22f) };
 		a_draw->AddPolyline(neck.data(), static_cast<int>(neck.size()), a_color, ImDrawFlags_None, a_thick);
-		a_draw->PathLineTo(a_frame.At(0.44f, 0.22f));
-		a_draw->PathBezierQuadraticCurveTo(a_frame.At(0.50f, 0.31f), a_frame.At(0.56f, 0.22f));
+		a_draw->PathLineTo(a_frame.Pixel(0.44f, 0.22f));
+		a_draw->PathBezierQuadraticCurveTo(a_frame.Curve(0.50f, 0.31f), a_frame.Pixel(0.56f, 0.22f));
 		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
-		const std::array<ImVec2, 10> gown{ a_frame.At(0.44f, 0.22f), a_frame.At(0.38f, 0.22f), a_frame.At(0.26f, 0.30f), a_frame.At(0.30f, 0.50f),
-			a_frame.At(0.20f, 0.78f), a_frame.At(0.80f, 0.78f), a_frame.At(0.70f, 0.50f), a_frame.At(0.74f, 0.30f), a_frame.At(0.62f, 0.22f),
-			a_frame.At(0.56f, 0.22f) };
+		const std::array<ImVec2, 10> gown{ a_frame.Pixel(0.44f, 0.22f), a_frame.Pixel(0.38f, 0.22f), a_frame.Pixel(0.26f, 0.30f), a_frame.Pixel(0.30f, 0.50f),
+			a_frame.Pixel(0.20f, 0.78f), a_frame.Pixel(0.80f, 0.78f), a_frame.Pixel(0.70f, 0.50f), a_frame.Pixel(0.74f, 0.30f), a_frame.Pixel(0.62f, 0.22f),
+			a_frame.Pixel(0.56f, 0.22f) };
 		a_draw->AddPolyline(gown.data(), static_cast<int>(gown.size()), a_color, ImDrawFlags_None, a_thick);
-		a_draw->AddLine(a_frame.At(0.30f, 0.50f), a_frame.At(0.70f, 0.50f), a_color, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.30f, 0.50f), a_frame.Pixel(0.70f, 0.50f), a_color, a_thick);
 		DrawStandFeet(a_draw, a_frame, a_color, a_thick, 0.78f);
 	}
 
@@ -2035,15 +2066,15 @@ namespace
 	// from the upper left tip.
 	void DrawStarIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		const std::array<ImVec2, 10> star{ a_frame.At(0.25f, 0.12f), a_frame.At(0.50f, 0.26f), a_frame.At(0.75f, 0.12f), a_frame.At(0.70f, 0.39f),
-			a_frame.At(0.90f, 0.59f), a_frame.At(0.62f, 0.62f), a_frame.At(0.50f, 0.88f), a_frame.At(0.38f, 0.62f), a_frame.At(0.10f, 0.59f),
-			a_frame.At(0.30f, 0.39f) };
-		const ImVec2                 centre = a_frame.At(0.50f, 0.46f);
+		const std::array<ImVec2, 10> star{ a_frame.Pixel(0.25f, 0.12f), a_frame.Pixel(0.50f, 0.26f), a_frame.Pixel(0.75f, 0.12f), a_frame.Pixel(0.70f, 0.39f),
+			a_frame.Pixel(0.90f, 0.59f), a_frame.Pixel(0.62f, 0.62f), a_frame.Pixel(0.50f, 0.88f), a_frame.Pixel(0.38f, 0.62f), a_frame.Pixel(0.10f, 0.59f),
+			a_frame.Pixel(0.30f, 0.39f) };
+		const ImVec2                 centre = a_frame.Pixel(0.50f, 0.46f);
 		const std::array<ImVec2, 4>  face{ centre, star[9], star[0], star[1] };  // clockwise, as ImGui's anti-aliased fill needs
 		a_draw->AddConvexPolyFilled(face.data(), static_cast<int>(face.size()), a_color);
 		a_draw->AddPolyline(star.data(), static_cast<int>(star.size()), a_color, ImDrawFlags_Closed, a_thick);
 		for (std::size_t i = 1; i < star.size(); i += 2) {
-			a_draw->AddLine(centre, star[i], a_color, a_thick);
+			StrokeLine(a_draw, centre, star[i], a_color, a_thick);
 		}
 	}
 
@@ -2056,11 +2087,11 @@ namespace
 		constexpr float kLidEdge = 0.50f;  // where the lid meets the box, of the side
 
 		const float s = a_frame.side;
-		a_draw->AddRect(a_frame.At(kLeft, kLidEdge), a_frame.At(kRight, 0.86f), a_color, 0.04f * s, ImDrawFlags_None, a_thick);
-		a_draw->PathLineTo(a_frame.At(kLeft, kLidEdge));
-		a_draw->PathBezierCubicCurveTo(a_frame.At(kLeft, 0.20f), a_frame.At(kRight, 0.20f), a_frame.At(kRight, kLidEdge));
+		StrokeRect(a_draw, a_frame.Pixel(kLeft, kLidEdge), a_frame.Pixel(kRight, 0.86f), 0.04f * s, a_color, a_thick);
+		a_draw->PathLineTo(a_frame.Pixel(kLeft, kLidEdge));
+		a_draw->PathBezierCubicCurveTo(a_frame.Curve(kLeft, 0.20f), a_frame.Curve(kRight, 0.20f), a_frame.Pixel(kRight, kLidEdge));
 		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
-		a_draw->AddRect(a_frame.At(0.44f, kLidEdge - 0.04f), a_frame.At(0.56f, kLidEdge + 0.12f), a_color, 0.02f * s, ImDrawFlags_None, a_thick);
+		StrokeRect(a_draw, a_frame.Pixel(0.44f, kLidEdge - 0.04f), a_frame.Pixel(0.56f, kLidEdge + 0.12f), 0.02f * s, a_color, a_thick);
 	}
 
 	// A wardrobe: a cornice wider than the body, rising to a crest over a straight underside,
@@ -2074,18 +2105,18 @@ namespace
 		constexpr float kKnobRadius = 0.03f;
 
 		const float s = a_frame.side;
-		a_draw->PathLineTo(a_frame.At(0.18f, kBodyTop));
-		a_draw->PathLineTo(a_frame.At(0.18f, 0.22f));
-		a_draw->PathBezierCubicCurveTo(a_frame.At(0.30f, 0.22f), a_frame.At(0.36f, 0.09f), a_frame.At(0.50f, 0.09f));
-		a_draw->PathBezierCubicCurveTo(a_frame.At(0.64f, 0.09f), a_frame.At(0.70f, 0.22f), a_frame.At(0.82f, 0.22f));
-		a_draw->PathLineTo(a_frame.At(0.82f, kBodyTop));
+		a_draw->PathLineTo(a_frame.Pixel(0.18f, kBodyTop));
+		a_draw->PathLineTo(a_frame.Pixel(0.18f, 0.22f));
+		a_draw->PathBezierCubicCurveTo(a_frame.Curve(0.30f, 0.22f), a_frame.Curve(0.36f, 0.09f), a_frame.Curve(0.50f, 0.09f));
+		a_draw->PathBezierCubicCurveTo(a_frame.Curve(0.64f, 0.09f), a_frame.Curve(0.70f, 0.22f), a_frame.Pixel(0.82f, 0.22f));
+		a_draw->PathLineTo(a_frame.Pixel(0.82f, kBodyTop));
 		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
-		a_draw->AddRect(a_frame.At(0.24f, kBodyTop), a_frame.At(0.76f, kBodyBottom), a_color, 0.02f * s, ImDrawFlags_None, a_thick);
-		a_draw->AddLine(a_frame.At(0.50f, kBodyTop), a_frame.At(0.50f, kBodyBottom), a_color, a_thick);
-		a_draw->AddCircleFilled(a_frame.At(0.39f, kKnobY), kKnobRadius * s, a_color);
-		a_draw->AddCircleFilled(a_frame.At(0.61f, kKnobY), kKnobRadius * s, a_color);
-		a_draw->AddLine(a_frame.At(0.30f, kBodyBottom), a_frame.At(0.30f, kLegBottom), a_color, a_thick);
-		a_draw->AddLine(a_frame.At(0.70f, kBodyBottom), a_frame.At(0.70f, kLegBottom), a_color, a_thick);
+		StrokeRect(a_draw, a_frame.Pixel(0.24f, kBodyTop), a_frame.Pixel(0.76f, kBodyBottom), 0.02f * s, a_color, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.50f, kBodyTop), a_frame.Pixel(0.50f, kBodyBottom), a_color, a_thick);
+		a_draw->AddCircleFilled(a_frame.Pixel(0.39f, kKnobY), kKnobRadius * s, a_color);
+		a_draw->AddCircleFilled(a_frame.Pixel(0.61f, kKnobY), kKnobRadius * s, a_color);
+		StrokeLine(a_draw, a_frame.Pixel(0.30f, kBodyBottom), a_frame.Pixel(0.30f, kLegBottom), a_color, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.70f, kBodyBottom), a_frame.Pixel(0.70f, kLegBottom), a_color, a_thick);
 	}
 
 	// What draws a Theme::HeadingIcon; nullptr for none.

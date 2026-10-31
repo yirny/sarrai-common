@@ -2038,6 +2038,27 @@ namespace
 		a_draw->AddRect(a_frame.At(0.44f, kLidEdge - 0.04f), a_frame.At(0.56f, kLidEdge + 0.12f), a_color, 0.02f * s, ImDrawFlags_None, a_thick);
 	}
 
+	// What draws a Theme::HeadingIcon; nullptr for none.
+	using IconDrawer = void (*)(ImDrawList*, const IconFrame&, ImU32, float);
+	IconDrawer HeadingIconDrawer(Theme::HeadingIcon a_icon)
+	{
+		switch (a_icon) {
+		case Theme::HeadingIcon::kBackpack:
+			return DrawBackpackIcon;
+		case Theme::HeadingIcon::kDressedForm:
+			return DrawDressedFormIcon;
+		case Theme::HeadingIcon::kBareForm:
+			return DrawDressFormIcon;
+		case Theme::HeadingIcon::kChest:
+			return DrawChestIcon;
+		case Theme::HeadingIcon::kStar:
+			return DrawStarIcon;
+		case Theme::HeadingIcon::kNone:
+			break;
+		}
+		return nullptr;
+	}
+
 	// A painter's palette: a round board with a bite out of its lower right for the thumb, the
 	// bite's two corners rounded, and three dabs of paint along the rim across from the bite,
 	// smaller towards the upper right, each as far from the rim and from the next.
@@ -2322,23 +2343,7 @@ namespace
 		constexpr float kSide = 18.0f;      // pixels at 1080p
 		constexpr float kLineWidth = 1.0f;  // pixels at 1080p, as an outfit row's marks
 
-		void (*icon)(ImDrawList*, const IconFrame&, ImU32, float) = nullptr;
-		switch (a_icon) {
-		case Theme::HeadingIcon::kBackpack:
-			icon = DrawBackpackIcon;
-			break;
-		case Theme::HeadingIcon::kDressedForm:
-			icon = DrawDressedFormIcon;
-			break;
-		case Theme::HeadingIcon::kBareForm:
-			icon = DrawDressFormIcon;
-			break;
-		case Theme::HeadingIcon::kChest:
-			icon = DrawChestIcon;
-			break;
-		case Theme::HeadingIcon::kNone:
-			break;
-		}
+		const auto icon = HeadingIconDrawer(a_icon);
 		if (!icon) {
 			return 0.0f;
 		}
@@ -2667,8 +2672,8 @@ namespace Theme
 	}
 
 	// LabelText's and CountText's line: the label font, or with `a_small` the small font; with
-	// `a_star` the star first (LabelText).
-	void FieldLineText(const char* a_text, bool a_opensField, bool a_small, bool a_star)
+	// `a_icon` that icon first (LabelText).
+	void FieldLineText(const char* a_text, bool a_opensField, bool a_small, Theme::HeadingIcon a_icon)
 	{
 		if (a_opensField) {
 			SectionGap();
@@ -2683,12 +2688,12 @@ namespace Theme
 		} else {
 			PushLabelFont();
 		}
-		if (a_star) {
+		if (const auto icon = HeadingIconDrawer(a_icon)) {
 			const float  side = ImGui::GetTextLineHeight();
 			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 			ImGui::Dummy(ImVec2(side, side));
 			// The label's grey through the style alpha, so it fades with the label; 1px lines at 1080p.
-			DrawStarIcon(ImGui::GetWindowDrawList(), IconFrame{ topLeft, side }, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
+			icon(ImGui::GetWindowDrawList(), IconFrame{ topLeft, side }, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
 			ImGui::SameLine(0.0f, kRowIconGap * g_scale);
 		}
 		ImGui::TextUnformatted(a_text);
@@ -2699,24 +2704,45 @@ namespace Theme
 
 	void LabelText(const char* a_text, bool a_opensField, bool a_star)
 	{
-		FieldLineText(Caps(a_text).c_str(), a_opensField, false, a_star);
+		FieldLineText(Caps(a_text).c_str(), a_opensField, false, a_star ? HeadingIcon::kStar : HeadingIcon::kNone);
+	}
+
+	void LabelText(const char* a_text, HeadingIcon a_icon, bool a_opensField)
+	{
+		FieldLineText(Caps(a_text).c_str(), a_opensField, false, a_icon);
 	}
 
 	void CountText(const char* a_text, bool a_opensField)
 	{
-		FieldLineText(a_text, a_opensField, true, false);
+		FieldLineText(a_text, a_opensField, true, HeadingIcon::kNone);
 	}
 
-	bool LabelLink(const char* a_label)
+	float LabelLinkWidth(const char* a_label)
 	{
+		PushSmallFont();
+		const float width = ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
+		ImGui::PopFont();
+		return width;
+	}
+
+	bool LabelLink(const char* a_label, LinkLine a_line, float a_reserveRight)
+	{
+		constexpr float kNextLineGap = 4.0f;  // pixels at 1080p, on top of the item spacing
+		constexpr float kLinkGap = 12.0f;     // pixels at 1080p, before the link `a_reserveRight` keeps room for
+
+		const float width = LabelLinkWidth(a_label);
 		PushSmallFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  side = ImGui::GetFontSize();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
-		const float  width = side + style.ItemInnerSpacing.x + text.x;
 
-		ImGui::SameLine();
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		if (a_line == LinkLine::kNext) {
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kNextLineGap * g_scale);
+		} else {
+			ImGui::SameLine();
+		}
+		const float reserved = a_reserveRight > 0.0f ? a_reserveRight + kLinkGap * g_scale : 0.0f;
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width - reserved));
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		PushLabelSpacing();  // the line's gap below stays LabelText's
 		const bool clicked = ImGui::InvisibleButton(a_label, ImVec2(width, (std::max)(side, text.y)));

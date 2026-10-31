@@ -75,8 +75,8 @@ namespace Theme
 	// 4px band of the window's glass outside it, in place of ImGui's border.
 	void DecorateWindow(bool popup = false);
 
-	// One line in the heading font, then the subtitle (if any) greyed close under
-	// it; Nordic centres both over an ornamented rule.
+	// One line in the heading font, then the subtitle (if any) greyed under it;
+	// Nordic centres both over an ornamented rule.
 	void HeadingText(const char* text, const char* subtitle = nullptr);
 
 	// A page's heading made of text tabs in place of HeadingText: BeginHeadingTabs with every

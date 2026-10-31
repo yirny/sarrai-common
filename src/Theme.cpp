@@ -2759,17 +2759,20 @@ namespace Theme
 			const auto&     loaded = LoadedFontsOf(g_skin);
 			const bool      ownFont = loaded.heading != nullptr;
 			const bool      nordic = g_skin == Skin::kNordic;
-			constexpr float kSubtitleGapTrim = 4.0f;  // how much closer the subtitle sits under the heading than the item spacing (pixels at 1080p)
+			const bool      modern = g_skin == Skin::kModern;
+			constexpr float kModernSubtitleGapTrim = 4.0f;   // Modern: how much closer the subtitle sits under the heading than the item spacing (pixels at 1080p)
+			constexpr float kSquareSubtitleGapBelow = 2.0f;  // Vanilla and Nordic: extra room under the subtitle (pixels at 1080p)
 
 			// The gap below an item comes from the item spacing in force while it is laid out:
-			// the subtitle sits close under the heading, and the wider gap follows only the
-			// last element (the rule in Nordic).
+			// the wider gap follows only the last element (the rule in Nordic), with a little
+			// more after a subtitle in Vanilla and Nordic; Modern's subtitle sits close under the heading.
 			// Contract: every page's body opens with a LabelText, whose section gap
 			// completes the heading's gap; the heading leaves that much out.
 			const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
 			const ImVec2 wider = HeadingGapSpacing(false);
-			const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kSubtitleGapTrim * g_scale));
+			const ImVec2 aboveSubtitle(spacing.x, modern ? (std::max)(0.0f, spacing.y - kModernSubtitleGapTrim * g_scale) : spacing.y);
 			const ImVec2 afterLast = HeadingGapSpacing(nordic);
+			const ImVec2 belowSubtitle(afterLast.x, afterLast.y + (modern ? 0.0f : kSquareSubtitleGapBelow * g_scale));
 
 			if (ownFont) {
 				ImGui::PushFont(loaded.heading, files.heading.size);
@@ -2777,7 +2780,7 @@ namespace Theme
 			if (nordic) {
 				CentreOnLine(ImGui::CalcTextSize(a_text).x);
 			}
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, a_subtitled ? tight : afterLast);
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, a_subtitled ? aboveSubtitle : afterLast);
 			ImGui::TextUnformatted(a_text);
 			ImGui::PopStyleVar();
 			if (ownFont) {
@@ -2785,7 +2788,7 @@ namespace Theme
 			}
 
 			if (a_subtitled) {
-				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, afterLast);
+				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, belowSubtitle);
 				a_drawSubtitle();
 				ImGui::PopStyleVar();
 			}

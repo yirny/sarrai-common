@@ -2429,17 +2429,16 @@ namespace
 	// as a faded square's must not show through them.
 	void DrawIconSquare(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color, Theme::HeadingIcon a_icon)
 	{
-		constexpr float kRounding = 4.0f;   // pixels at 1080p, as DrawPlusSquare's
-		constexpr float kInset = 0.12f;     // of the side, between the square's edge and the icon's frame
-		constexpr float kLineWidth = 2.0f;  // pixels at 1080p, about the plus's arm
+		constexpr float kRounding = 4.0f;  // pixels at 1080p, as DrawPlusSquare's
 
 		const ImVec2 origin(std::floor(a_topLeft.x), std::floor(a_topLeft.y));
 		const float  s = std::floor(a_side);
 		a_draw->AddRectFilled(origin, ImVec2(origin.x + s, origin.y + s), a_color, kRounding * g_scale);
 		ImVec4 window = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
 		window.w = 1.0f;
-		DrawIconCentredOn(a_draw, a_icon, origin.x + s * kInset, origin.y + s * 0.5f, s * (1.0f - kInset * 2.0f), ImGui::ColorConvertFloat4ToU32(window),
-			(std::max)(1.0f, kLineWidth * g_scale));
+		// The icon's frame is the square: the drawings keep their own margin, and thicker lines
+		// or a smaller frame close them up at this size. 1px lines at 1080p.
+		DrawIconCentredOn(a_draw, a_icon, origin.x, origin.y + s * 0.5f, s, ImGui::ColorConvertFloat4ToU32(window), (std::max)(1.0f, g_scale));
 	}
 
 	ImU32 LinkColor(bool a_hovered)

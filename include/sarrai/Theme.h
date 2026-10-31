@@ -265,7 +265,8 @@ namespace Theme
 		kNone,
 		kBackpack,     // the Inventory tab's backpack
 		kDressedForm,  // an outfit row's mark of the outfit worn now
-		kBareForm      // an outfit row's mark of the Default, the Manage Wardrobe tab's form
+		kBareForm,     // an outfit row's mark of the Default, the Manage Wardrobe tab's form
+		kChest         // the Chests tab's chest
 	};
 
 	// A heading inside a list: a TextRow in LabelText's font, greyed, in capitals (the piece
@@ -505,6 +506,7 @@ namespace Theme
 		kInventory,   // a backpack
 		kOutfits,     // a bare dress form: a padded torso on a stand
 		kSituations,  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
+		kChests,      // a chest: a domed lid on a box, a clasp where they meet
 		kAppearance   // a painter's palette
 	};
 

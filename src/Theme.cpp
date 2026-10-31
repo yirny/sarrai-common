@@ -2022,6 +2022,22 @@ namespace
 		}
 	}
 
+	// A chest: a box with a domed lid, the lid's edge across the whole, a clasp hanging from
+	// that edge over the box's middle.
+	void DrawChestIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		constexpr float kLeft = 0.16f;
+		constexpr float kRight = 0.84f;
+		constexpr float kLidEdge = 0.50f;  // where the lid meets the box, of the side
+
+		const float s = a_frame.side;
+		a_draw->AddRect(a_frame.At(kLeft, kLidEdge), a_frame.At(kRight, 0.86f), a_color, 0.04f * s, ImDrawFlags_None, a_thick);
+		a_draw->PathLineTo(a_frame.At(kLeft, kLidEdge));
+		a_draw->PathBezierCubicCurveTo(a_frame.At(kLeft, 0.20f), a_frame.At(kRight, 0.20f), a_frame.At(kRight, kLidEdge));
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		a_draw->AddRect(a_frame.At(0.44f, kLidEdge - 0.04f), a_frame.At(0.56f, kLidEdge + 0.12f), a_color, 0.02f * s, ImDrawFlags_None, a_thick);
+	}
+
 	// A painter's palette: a round board with a bite out of its lower right for the thumb, the
 	// bite's two corners rounded, and three dabs of paint along the rim across from the bite,
 	// smaller towards the upper right, each as far from the rim and from the next.
@@ -2316,6 +2332,9 @@ namespace
 			break;
 		case Theme::HeadingIcon::kBareForm:
 			icon = DrawDressFormIcon;
+			break;
+		case Theme::HeadingIcon::kChest:
+			icon = DrawChestIcon;
 			break;
 		case Theme::HeadingIcon::kNone:
 			break;
@@ -2975,6 +2994,9 @@ namespace Theme
 			break;
 		case TabIcon::kSituations:
 			DrawStarIcon(draw, frame, color, thick);
+			break;
+		case TabIcon::kChests:
+			DrawChestIcon(draw, frame, color, thick);
 			break;
 		case TabIcon::kAppearance:
 			DrawPaletteIcon(draw, frame, color, thick);

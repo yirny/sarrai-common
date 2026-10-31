@@ -33,6 +33,7 @@ namespace Theme
 		std::uint32_t surface = 0x101314FA;      // popups, dropdown lists and tooltips
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
+		std::uint32_t emphasis = 0xE0DCBCFF;     // names inside a line of greyed text or a link, at 0.85 of this until the mouse lights them
 		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
 		std::uint32_t accentLight = 0xD0D3D4FF;  // the text cursor, a scroll bar or slider held
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
@@ -120,6 +121,7 @@ namespace Theme
 	// the right end, for a link (LabelLinkWidth) that follows on the same line. `icon` (a
 	// HeadingIcon, below) and `afterIcon` follow the label, for an icon inside the words:
 	// "[+] Add from <icon> Wardrobe...", the icon a square of the plus's side, 1px lines at 1080p.
+	// Those two are in the palette's emphasis, at 0.85 of it until hovered.
 	// Contract: the labels are shown as they are and the last one is the ImGui ID, so it must
 	// not use "##" IDs.
 	enum class LinkLine
@@ -283,6 +285,21 @@ namespace Theme
 		kChest,        // the Chests tab's chest
 		kStar          // the Situations tab's star
 	};
+
+	// A part of HeadingText's run subtitle. With `icon` (a square as LabelText draws it, in the
+	// text's colour) or `rowIcon` (as OutfitRow draws it, in its own tint) and 6px before it, the
+	// text is a name, in the palette's emphasis at 0.85; without either it is in the greyed text.
+	struct SubtitleRun
+	{
+		const char* text;
+		HeadingIcon icon = HeadingIcon::kNone;
+		RowIcon     rowIcon;
+	};
+
+	// HeadingText whose subtitle is `subtitle`'s parts in order, on one line: names that do not
+	// fit are cut with an ellipsis, the first name first. Nordic centres the line.
+	// Contract: the texts are shown as they are.
+	void HeadingText(const char* text, std::span<const SubtitleRun> subtitle);
 
 	// LabelText starting with `icon`, an 18px square in its grey, its drawing centred on the
 	// capitals' height, and 6px.

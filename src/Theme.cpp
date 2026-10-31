@@ -618,6 +618,22 @@ namespace
 		return PaletteColor(g_palette.label);
 	}
 
+	// A name inside greyed text or a link: the palette's emphasis when `a_lit`, a little darker
+	// otherwise, so it stands out of the grey without outshining the text. A colour for
+	// GetColorU32 or PushStyleColor, which apply the style alpha.
+	ImVec4 EmphasisColor(bool a_lit)
+	{
+		constexpr float kUnlit = 0.85f;  // of each of the red, green and blue, not of the opacity
+
+		ImVec4 color = ImGui::ColorConvertU32ToFloat4(PaletteColor(g_palette.emphasis));
+		if (!a_lit) {
+			color.x *= kUnlit;
+			color.y *= kUnlit;
+			color.z *= kUnlit;
+		}
+		return color;
+	}
+
 	// The red of error text and fields: the palette's.
 	ImU32 ErrorRed()
 	{
@@ -2634,61 +2650,135 @@ namespace Theme
 		DrawCornerKnot(draw, bottomRight, -1.0f, -1.0f);
 	}
 
+	namespace
+	{
+		// Moves the cursor so an item `a_width` wide is centred on what is left of the line.
+		void CentreOnLine(float a_width)
+		{
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - a_width) * 0.5f));
+		}
+
+		// The room a subtitle part's icon takes before its text, the gap included.
+		float SubtitleIconRoom(const SubtitleRun& a_run)
+		{
+			if (a_run.icon != HeadingIcon::kNone) {
+				return (kHeadingIconSide + kRowIconGap) * g_scale;
+			}
+			return a_run.rowIcon.key.empty() ? 0.0f : OutfitIconRoom();
+		}
+
+		// The parts of a run subtitle on one line, at the cursor; the last name's cut leaves
+		// whatever still does not fit to the window's clipping.
+		// Contract: in the font the line is laid out in, with ItemSpacing the gap below it.
+		void DrawSubtitleRuns(std::span<const SubtitleRun> a_runs)
+		{
+			float total = 0.0f;
+			for (const auto& run : a_runs) {
+				total += SubtitleIconRoom(run) + ImGui::CalcTextSize(run.text).x;
+			}
+			const float avail = ImGui::GetContentRegionAvail().x;
+			if (g_skin == Skin::kNordic) {
+				CentreOnLine(total);
+			}
+			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+			const float  lineHeight = ImGui::GetTextLineHeight();
+			ImGui::Dummy(ImVec2((std::min)(total, avail), lineHeight));
+
+			auto*        draw = ImGui::GetWindowDrawList();
+			const ImU32  grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+			const ImVec4 emphasis = EmphasisColor(false);
+			float        over = (std::max)(0.0f, total - avail);
+			float        x = topLeft.x;
+			for (const auto& run : a_runs) {
+				const bool named = run.icon != HeadingIcon::kNone || !run.rowIcon.key.empty();
+				if (run.icon != HeadingIcon::kNone) {
+					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), kHeadingIconSide * g_scale, ImGui::GetColorU32(emphasis), (std::max)(1.0f, g_scale));  // 1px lines at 1080p
+				} else if (named) {
+					DrawOutfitIcon(draw, x, topLeft.y + lineHeight * 0.5f, &run.rowIcon);
+				}
+				x += SubtitleIconRoom(run);
+
+				const ImVec2 size = ImGui::CalcTextSize(run.text);
+				const float  cut = named ? (std::min)(over, (std::max)(0.0f, size.x - ImGui::CalcTextSize("...").x)) : 0.0f;
+				const float  right = x + size.x - cut;
+				over -= cut;
+				if (cut > 0.0f) {
+					ImGui::PushStyleColor(ImGuiCol_Text, emphasis);  // RenderTextEllipsis draws in the text colour
+					ImGui::RenderTextEllipsis(draw, ImVec2(x, topLeft.y), ImVec2(right, topLeft.y + size.y), right, run.text, nullptr, &size);
+					ImGui::PopStyleColor();
+				} else {
+					draw->AddText(ImVec2(x, topLeft.y), named ? ImGui::GetColorU32(emphasis) : grey, run.text);
+				}
+				x = right;
+			}
+		}
+
+		// The heading line, then `a_drawSubtitle` when `a_subtitled`, then Nordic's rule.
+		template <class DrawSubtitle>
+		void DrawHeadingLines(const char* a_text, bool a_subtitled, DrawSubtitle&& a_drawSubtitle)
+		{
+			const auto&     files = FontFilesOf(g_skin);
+			const auto&     loaded = LoadedFontsOf(g_skin);
+			const bool      ownFont = loaded.heading != nullptr;
+			const bool      nordic = g_skin == Skin::kNordic;
+			constexpr float kSubtitleGapTrim = 4.0f;  // how much closer the subtitle sits under the heading than the item spacing (pixels at 1080p)
+
+			// The gap below an item comes from the item spacing in force while it is laid out:
+			// the subtitle sits close under the heading, and the wider gap follows only the
+			// last element (the rule in Nordic).
+			// Contract: every page's body opens with a LabelText, whose section gap
+			// completes the heading's gap; the heading leaves that much out.
+			const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+			const ImVec2 wider = HeadingGapSpacing(false);
+			const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kSubtitleGapTrim * g_scale));
+			const ImVec2 afterLast = HeadingGapSpacing(nordic);
+
+			if (ownFont) {
+				ImGui::PushFont(loaded.heading, files.heading.size);
+			}
+			if (nordic) {
+				CentreOnLine(ImGui::CalcTextSize(a_text).x);
+			}
+			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, a_subtitled ? tight : afterLast);
+			ImGui::TextUnformatted(a_text);
+			ImGui::PopStyleVar();
+			if (ownFont) {
+				ImGui::PopFont();
+			}
+
+			if (a_subtitled) {
+				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, afterLast);
+				a_drawSubtitle();
+				ImGui::PopStyleVar();
+			}
+
+			if (nordic) {
+				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
+				DrawHeadingRule();
+				ImGui::PopStyleVar();
+			}
+		}
+	}
+
 	void HeadingText(const char* a_text, const char* a_subtitle)
 	{
-		const auto& files = FontFilesOf(g_skin);
-		const auto& loaded = LoadedFontsOf(g_skin);
-		const bool  ownFont = loaded.heading != nullptr;
-		const bool  nordic = g_skin == Skin::kNordic;
-		const bool  subtitled = a_subtitle && *a_subtitle;
-		const auto  centre = [](float a_width) {
-			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, (ImGui::GetContentRegionAvail().x - a_width) * 0.5f));
-		};
-		constexpr float kSubtitleGapTrim = 4.0f;  // how much closer the subtitle sits under the heading than the item spacing (pixels at 1080p)
-
-		// The gap below an item comes from the item spacing in force while it is laid out:
-		// the subtitle sits close under the heading, and the wider gap follows only the
-		// last element (the rule in Nordic).
-		// Contract: every page's body opens with a LabelText, whose section gap
-		// completes the heading's gap; the heading leaves that much out.
-		const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
-		const ImVec2 wider = HeadingGapSpacing(false);
-		const ImVec2 tight(spacing.x, (std::max)(0.0f, spacing.y - kSubtitleGapTrim * g_scale));
-		const ImVec2 afterLast = HeadingGapSpacing(nordic);
-
-		if (ownFont) {
-			ImGui::PushFont(loaded.heading, files.heading.size);
-		}
-		if (nordic) {
-			centre(ImGui::CalcTextSize(a_text).x);
-		}
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, subtitled ? tight : afterLast);
-		ImGui::TextUnformatted(a_text);
-		ImGui::PopStyleVar();
-		if (ownFont) {
-			ImGui::PopFont();
-		}
-
-		if (subtitled) {
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, afterLast);
+		DrawHeadingLines(a_text, a_subtitle && *a_subtitle, [a_subtitle] {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			// Nordic centres a subtitle that fits on one line; a longer one wraps from the left.
 			const float width = ImGui::CalcTextSize(a_subtitle).x;
-			if (nordic && width <= ImGui::GetContentRegionAvail().x) {
-				centre(width);
+			if (g_skin == Skin::kNordic && width <= ImGui::GetContentRegionAvail().x) {
+				CentreOnLine(width);
 				ImGui::TextUnformatted(a_subtitle);
 			} else {
 				ImGui::TextWrapped("%s", a_subtitle);
 			}
 			ImGui::PopStyleColor();
-			ImGui::PopStyleVar();
-		}
+		});
+	}
 
-		if (nordic) {
-			ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, wider);
-			DrawHeadingRule();
-			ImGui::PopStyleVar();
-		}
+	void HeadingText(const char* a_text, std::span<const SubtitleRun> a_subtitle)
+	{
+		DrawHeadingLines(a_text, !a_subtitle.empty(), [a_subtitle] { DrawSubtitleRuns(a_subtitle); });
 	}
 
 	float HeadingTabsWidth(std::span<const char* const> a_labels)
@@ -2833,7 +2923,9 @@ namespace Theme
 		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)));
 		ImGui::PopStyleVar();
 
-		const ImU32 color = LinkColor(ImGui::IsItemHovered());
+		const bool  hovered = ImGui::IsItemHovered();
+		const ImU32 color = LinkColor(hovered);
+		const ImU32 emphasis = ImGui::GetColorU32(EmphasisColor(hovered));
 		auto*       draw = ImGui::GetWindowDrawList();
 		DrawPlusSquare(draw, topLeft, side, color);
 		float x = topLeft.x + side + style.ItemInnerSpacing.x;
@@ -2841,11 +2933,11 @@ namespace Theme
 		x += text.x;
 		if (a_icon != HeadingIcon::kNone) {
 			const float gap = kLinkIconGap * g_scale;
-			DrawIconCentredOn(draw, a_icon, x + gap, topLeft.y + CapsMiddle(), side, color, (std::max)(1.0f, g_scale));  // 1px lines at 1080p
+			DrawIconCentredOn(draw, a_icon, x + gap, topLeft.y + CapsMiddle(), side, emphasis, (std::max)(1.0f, g_scale));  // 1px lines at 1080p
 			x += side + gap * 2.0f;
 		}
 		if (a_afterIcon) {
-			draw->AddText(ImVec2(x, topLeft.y), color, a_afterIcon);
+			draw->AddText(ImVec2(x, topLeft.y), emphasis, a_afterIcon);
 		}
 		ImGui::PopFont();
 		return clicked;

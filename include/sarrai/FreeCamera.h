@@ -41,6 +41,21 @@ namespace FreeCamera
 		bool  turnInPlace = false;  // a left drag turns the view and leaves the camera where it is
 		bool  allowLateral = true;  // moveRight and a right drag
 		bool  levelZoom = false;    // the wheel moves on the horizontal facing, not along the look
+
+		// Bounds around the actor as Begin found them: where they stood and how tall they
+		// were, so the camera stays put when they walk. Distance and sideways are measured on
+		// the camera's horizontal facing, so a left drag around the actor leaves them as they
+		// are. Begin's own place always stays allowed. maxActorDistance 0 turns all of these off.
+		float minActorDistance = 0.0f;  // units
+		float maxActorDistance = 0.0f;  // units
+		float sideSlope = 0.0f;         // units sideways per unit of distance
+		float upperHeight = 0.0f;       // share of the actor's height the highest camera is measured from
+		float lowerHeight = 0.0f;       // share of the actor's height the lowest camera is measured from
+		float riseSlope = 0.0f;         // units above upperHeight or below lowerHeight per unit of distance
+
+		// Above 0, a wheel step is this share of the distance to the actor, and the camera
+		// eases over it across frames. At 0 a step is a fixed length, moved at once.
+		float zoomShare = 0.0f;
 	};
 
 	// Enters the free camera when the camera is in ordinary first or third
@@ -63,8 +78,8 @@ namespace FreeCamera
 	// without it.
 	void CentreSideways(RE::Actor& actor, float seconds = 0.0f);
 
-	// True while a CentreSideways glide is under way: the caller keeps calling Move each
-	// frame, with empty input when there is none, until it is false.
+	// True while a CentreSideways glide or an eased wheel step is under way: the caller keeps
+	// calling Move each frame, with empty input when there is none, until it is false.
 	// Contract: safe from any thread; the window reads it on the render thread.
 	bool Gliding();
 

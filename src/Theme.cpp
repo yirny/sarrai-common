@@ -2424,22 +2424,7 @@ namespace
 
 	// LabelText's grey, or the lit colour while hovered: the accent in Modern, the text
 	// colour in Vanilla and Nordic.
-	// DrawPlusSquare's square with `a_icon` in place of the plus, seen as cut out of it: a drawing
-	// in lines cannot be cut out as the plus is, so its lines take the window's colour, opaque,
-	// as a faded square's must not show through them.
-	void DrawIconSquare(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color, Theme::HeadingIcon a_icon)
-	{
-		constexpr float kRounding = 4.0f;  // pixels at 1080p, as DrawPlusSquare's
-
-		const ImVec2 origin(std::floor(a_topLeft.x), std::floor(a_topLeft.y));
-		const float  s = std::floor(a_side);
-		a_draw->AddRectFilled(origin, ImVec2(origin.x + s, origin.y + s), a_color, kRounding * g_scale);
-		ImVec4 window = ImGui::GetStyleColorVec4(ImGuiCol_WindowBg);
-		window.w = 1.0f;
-		// The icon's frame is the square: the drawings keep their own margin, and thicker lines
-		// or a smaller frame close them up at this size. 1px lines at 1080p.
-		DrawIconCentredOn(a_draw, a_icon, origin.x, origin.y + s * 0.5f, s, ImGui::ColorConvertFloat4ToU32(window), (std::max)(1.0f, g_scale));
-	}
+	constexpr float kLinkIconGap = 2.0f;  // pixels at 1080p, either side of a label link's icon, whose drawing keeps its own margin
 
 	ImU32 LinkColor(bool a_hovered)
 	{
@@ -2773,20 +2758,27 @@ namespace Theme
 		FieldLineText(a_text, a_opensField, true, HeadingIcon::kNone);
 	}
 
-	float LabelLinkWidth(const char* a_label)
+	float LabelLinkWidth(const char* a_label, HeadingIcon a_icon, const char* a_afterIcon)
 	{
 		PushSmallFont();
-		const float width = ImGui::GetFontSize() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
+		const float side = ImGui::GetFontSize();
+		float       width = side + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(a_label).x;
+		if (a_icon != HeadingIcon::kNone) {
+			width += side + kLinkIconGap * 2.0f * g_scale;
+		}
+		if (a_afterIcon) {
+			width += ImGui::CalcTextSize(a_afterIcon).x;
+		}
 		ImGui::PopFont();
 		return width;
 	}
 
-	bool LabelLink(const char* a_label, LinkLine a_line, float a_reserveRight, HeadingIcon a_icon)
+	bool LabelLink(const char* a_label, LinkLine a_line, float a_reserveRight, HeadingIcon a_icon, const char* a_afterIcon)
 	{
 		constexpr float kNextLineGap = 4.0f;  // pixels at 1080p, on top of the item spacing
 		constexpr float kLinkGap = 12.0f;     // pixels at 1080p, before the link `a_reserveRight` keeps room for
 
-		const float width = LabelLinkWidth(a_label);
+		const float width = LabelLinkWidth(a_label, a_icon, a_afterIcon);
 		PushSmallFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  side = ImGui::GetFontSize();
@@ -2801,17 +2793,23 @@ namespace Theme
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width - reserved));
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		PushLabelSpacing();  // the line's gap below stays LabelText's
-		const bool clicked = ImGui::InvisibleButton(a_label, ImVec2(width, (std::max)(side, text.y)));
+		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)));
 		ImGui::PopStyleVar();
 
 		const ImU32 color = LinkColor(ImGui::IsItemHovered());
 		auto*       draw = ImGui::GetWindowDrawList();
-		if (a_icon == HeadingIcon::kNone) {
-			DrawPlusSquare(draw, topLeft, side, color);
-		} else {
-			DrawIconSquare(draw, topLeft, side, color, a_icon);
+		DrawPlusSquare(draw, topLeft, side, color);
+		float x = topLeft.x + side + style.ItemInnerSpacing.x;
+		draw->AddText(ImVec2(x, topLeft.y), color, a_label);
+		x += text.x;
+		if (a_icon != HeadingIcon::kNone) {
+			const float gap = kLinkIconGap * g_scale;
+			DrawIconCentredOn(draw, a_icon, x + gap, topLeft.y + CapsMiddle(), side, color, (std::max)(1.0f, g_scale));  // 1px lines at 1080p
+			x += side + gap * 2.0f;
 		}
-		draw->AddText(ImVec2(topLeft.x + side + style.ItemInnerSpacing.x, topLeft.y), color, a_label);
+		if (a_afterIcon) {
+			draw->AddText(ImVec2(x, topLeft.y), color, a_afterIcon);
+		}
 		ImGui::PopFont();
 		return clicked;
 	}

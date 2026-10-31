@@ -33,7 +33,7 @@ namespace Theme
 		std::uint32_t surface = 0x101314FA;      // popups, dropdown lists and tooltips
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
-		std::uint32_t emphasis = 0xE0DCBCFF;     // names inside a line of greyed text or a link, at 0.85 of this until the mouse lights them
+		std::uint32_t emphasis = 0xF3ECBBFF;     // names inside a line of greyed text or a link, at 0.85 of this until the mouse lights them
 		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
 		std::uint32_t accentLight = 0xD0D3D4FF;  // the text cursor, a scroll bar or slider held
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
@@ -286,14 +286,14 @@ namespace Theme
 		kStar          // the Situations tab's star
 	};
 
-	// A part of HeadingText's run subtitle. With `icon` (a square as LabelText draws it, in the
-	// text's colour) or `rowIcon` (as OutfitRow draws it, in its own tint) and 6px before it, the
-	// text is a name, in the palette's emphasis at 0.85; without either it is in the greyed text.
+	// A part of HeadingText's run subtitle. With `icon` (a square as LabelText draws it) or
+	// `rowIconKey` (an IconFile's key, sized as OutfitRow draws it) and 6px before it, the text is
+	// a name, it and its icon in the palette's emphasis at 0.85; without either it is greyed text.
 	struct SubtitleRun
 	{
-		const char* text;
-		HeadingIcon icon = HeadingIcon::kNone;
-		RowIcon     rowIcon;
+		const char*      text;
+		HeadingIcon      icon = HeadingIcon::kNone;
+		std::string_view rowIconKey;
 	};
 
 	// HeadingText whose subtitle is `subtitle`'s parts in order, on one line: names that do not

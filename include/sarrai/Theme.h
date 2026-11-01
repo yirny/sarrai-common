@@ -168,6 +168,13 @@ namespace Theme
 	// Width Button(label) will take, so a caller can centre a row of them.
 	float ButtonWidth(const char* label);
 
+	// Button with `icon` (HeadingIcon, below) before its label, inside its frame: LabelText's
+	// 18px square and 1px lines at 1080p, 6px before the label, in the label's colour, its
+	// drawing centred on the capitals. ButtonWidth(icon, label) is the room it takes.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool  Button(HeadingIcon icon, const char* label);
+	float ButtonWidth(HeadingIcon icon, const char* label);
+
 	// Height Button and HelpButton take: the frame height, in Vanilla in its larger font.
 	float ButtonHeight();
 
@@ -282,7 +289,8 @@ namespace Theme
 		kBareForm,     // an outfit row's mark of the Default, the Dress tab's form
 		kWardrobe,     // the Wardrobe tab's wardrobe
 		kChest,        // the Chests tab's chest
-		kStar          // the Situations tab's star
+		kStar,         // the Situations tab's star
+		kPalette       // the Appearance tab's palette
 	};
 
 	// A part of HeadingText's run subtitle or of HeadingRunText's line. With `icon` (a square as LabelText draws it) or
@@ -305,6 +313,11 @@ namespace Theme
 	// the heading's text height, the parts that are no name in the text colour.
 	// Contract: the texts are shown as they are.
 	void HeadingRunText(std::span<const SubtitleRun> title);
+
+	// HeadingText with `icon` before its own line, sized as HeadingRunText's line icons, in the
+	// text colour, 6px before the text; Nordic centres the icon and the text together.
+	void HeadingText(HeadingIcon icon, const char* text, const char* subtitle = nullptr);
+	void HeadingText(HeadingIcon icon, const char* text, std::span<const SubtitleRun> subtitle);
 
 	// LabelText starting with `icon`, an 18px square in its grey, its drawing centred on the
 	// capitals' height, and 6px.

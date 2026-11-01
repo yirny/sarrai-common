@@ -152,7 +152,9 @@ namespace
 	// it and the row's first column (pixels at 1080p).
 	constexpr float kRowIconRatio = 0.8f;
 	constexpr float kRowIconGap = 6.0f;
-	constexpr float kHeadingIconSide = 18.0f;  // pixels at 1080p: a list heading's or a label's icon (HeadingIconDrawer)
+	constexpr float kHeadingIconSide = 18.0f;          // pixels at 1080p: a list heading's or a label's icon (HeadingIconDrawer)
+	constexpr float kHeadingLineIconRatio = 1.2f;      // of the heading font's size: the chest's drawing, 0.585 of its square, comes out about the capitals' height
+	constexpr float kHeadingLineIconLineWidth = 1.5f;  // pixels at 1080p, as the tabs'
 
 	struct FontFile
 	{
@@ -1070,18 +1072,29 @@ namespace
 		return true;
 	}
 
-	// A button's text: its label, then, when `a_help`, a space and the greyed help mark.
-	float ButtonTextWidth(const char* a_label, bool a_help)
+	void  DrawIconCentredOn(ImDrawList* a_draw, Theme::HeadingIcon a_icon, float a_left, float a_centreY, float a_side, ImU32 a_color, float a_thick);
+	float CapsMiddle();
+
+	// A button's text: `a_icon` (if any) and its gap, its label, then, when `a_help`, a space
+	// and the greyed help mark.
+	float ButtonTextWidth(const char* a_label, bool a_help, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone)
 	{
+		const float icon = a_icon == Theme::HeadingIcon::kNone ? 0.0f : (kHeadingIconSide + kRowIconGap) * g_scale;
 		const float label = ImGui::CalcTextSize(a_label).x;
-		return a_help ? label + ImGui::CalcTextSize(" ").x + ImGui::CalcTextSize(kHelpMark).x : label;
+		return icon + (a_help ? label + ImGui::CalcTextSize(" ").x + ImGui::CalcTextSize(kHelpMark).x : label);
 	}
 
-	// That text centred in the button from `a_min` to `a_max` (screen pixels).
-	void DrawButtonText(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, const char* a_label, bool a_help)
+	// That text centred in the button from `a_min` to `a_max` (screen pixels); the icon in the
+	// text colour, so it lights and fades with the label, 1px lines at 1080p.
+	void DrawButtonText(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, const char* a_label, bool a_help, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone)
 	{
-		const float  height = ImGui::GetTextLineHeight();
-		const ImVec2 at(a_min.x + (a_max.x - a_min.x - ButtonTextWidth(a_label, a_help)) * 0.5f, (a_min.y + a_max.y - height) * 0.5f);
+		const float height = ImGui::GetTextLineHeight();
+		ImVec2      at(a_min.x + (a_max.x - a_min.x - ButtonTextWidth(a_label, a_help, a_icon)) * 0.5f, (a_min.y + a_max.y - height) * 0.5f);
+		if (a_icon != Theme::HeadingIcon::kNone) {
+			const float side = kHeadingIconSide * g_scale;
+			DrawIconCentredOn(a_draw, a_icon, at.x, at.y + CapsMiddle(), side, ImGui::GetColorU32(ImGuiCol_Text), (std::max)(1.0f, g_scale));
+			at.x += side + kRowIconGap * g_scale;
+		}
 		a_draw->AddText(at, ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		if (a_help) {
 			const float markX = at.x + ImGui::CalcTextSize(a_label).x + ImGui::CalcTextSize(" ").x;
@@ -1091,16 +1104,16 @@ namespace
 
 	// NORDIC UI's main-menu button: a frame with pointed ends, grey at rest,
 	// white with a grey fill when hovered, brighter while held. `a_help` puts the
-	// help mark after the label, inside the frame.
-	float PointedButtonWidth(const char* a_label, bool a_help = false)
+	// help mark after the label, `a_icon` an icon before it, inside the frame.
+	float PointedButtonWidth(const char* a_label, bool a_help = false, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone)
 	{
-		return ButtonTextWidth(a_label, a_help) + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetFrameHeight();
+		return ButtonTextWidth(a_label, a_help, a_icon) + ImGui::GetStyle().FramePadding.x * 2.0f + ImGui::GetFrameHeight();
 	}
 
-	bool PointedButton(const char* a_label, bool a_help = false)
+	bool PointedButton(const char* a_label, bool a_help = false, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone)
 	{
 		const float  height = ImGui::GetFrameHeight();
-		const ImVec2 size(PointedButtonWidth(a_label, a_help), height);
+		const ImVec2 size(PointedButtonWidth(a_label, a_help, a_icon), height);
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
 		const bool pressed = ImGui::InvisibleButton(a_label, size);
@@ -1118,7 +1131,7 @@ namespace
 		}
 		const float thick = (std::max)(1.0f, g_scale) * (hovered ? 1.5f : 1.0f);
 		draw->AddPolyline(frame, 6, ImGui::GetColorU32(hovered ? PaletteColor(g_palette.text) : OrnamentColor()), ImDrawFlags_Closed, thick);
-		DrawButtonText(draw, topLeft, bottomRight, a_label, a_help);
+		DrawButtonText(draw, topLeft, bottomRight, a_label, a_help, a_icon);
 		return pressed;
 	}
 
@@ -1131,23 +1144,23 @@ namespace
 	}
 
 	// Vanilla's button: text only, in PushVanillaButtonFont, with kVanillaButtonMargin clear on
-	// either side, outside the item, so buttons on a line stand further apart. `a_help` puts the help mark after the label.
+	// either side, outside the item, so buttons on a line stand further apart. `a_help` puts the help mark after the label, `a_icon` an icon before it.
 	// VanillaButtonWidth is the room it takes, margins included.
-	float VanillaButtonWidth(const char* a_label, bool a_help)
+	float VanillaButtonWidth(const char* a_label, bool a_help, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone)
 	{
 		PushVanillaButtonFont();
-		const float width = ButtonTextWidth(a_label, a_help) + (ImGui::GetStyle().FramePadding.x + kVanillaButtonMargin * g_scale) * 2.0f;
+		const float width = ButtonTextWidth(a_label, a_help, a_icon) + (ImGui::GetStyle().FramePadding.x + kVanillaButtonMargin * g_scale) * 2.0f;
 		ImGui::PopFont();
 		return width;
 	}
 
-	bool VanillaButton(const char* a_label, bool a_help)
+	bool VanillaButton(const char* a_label, bool a_help, Theme::HeadingIcon a_icon = Theme::HeadingIcon::kNone)
 	{
 		PushVanillaButtonFont();
 		const auto&  style = ImGui::GetStyle();
 		const float  margin = kVanillaButtonMargin * g_scale;
 		const ImVec2 pos = ImGui::GetCursorScreenPos();
-		const ImVec2 size(ButtonTextWidth(a_label, a_help) + style.FramePadding.x * 2.0f, ImGui::GetFrameHeight());
+		const ImVec2 size(ButtonTextWidth(a_label, a_help, a_icon) + style.FramePadding.x * 2.0f, ImGui::GetFrameHeight());
 		const ImRect frame(ImVec2(pos.x + margin, pos.y), ImVec2(pos.x + margin + size.x, pos.y + size.y));
 		ImGui::ItemSize(ImVec2(size.x + margin * 2.0f, size.y), style.FramePadding.y);
 		const ImGuiID id = ImGui::GetID(a_label);
@@ -1161,7 +1174,7 @@ namespace
 			if (!lit) {
 				ImGui::PushStyleColor(ImGuiCol_Text, LabelGrey());
 			}
-			DrawButtonText(ImGui::GetWindowDrawList(), frame.Min, frame.Max, a_label, a_help);
+			DrawButtonText(ImGui::GetWindowDrawList(), frame.Min, frame.Max, a_label, a_help, a_icon);
 			if (!lit) {
 				ImGui::PopStyleColor();
 			}
@@ -2122,6 +2135,8 @@ namespace
 	}
 
 	// What draws a Theme::HeadingIcon; nullptr for none.
+	void DrawPaletteIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick);
+
 	using IconDrawer = void (*)(ImDrawList*, const IconFrame&, ImU32, float);
 	IconDrawer HeadingIconDrawer(Theme::HeadingIcon a_icon)
 	{
@@ -2138,6 +2153,8 @@ namespace
 			return DrawChestIcon;
 		case Theme::HeadingIcon::kStar:
 			return DrawStarIcon;
+		case Theme::HeadingIcon::kPalette:
+			return DrawPaletteIcon;
 		case Theme::HeadingIcon::kNone:
 			break;
 		}
@@ -2161,6 +2178,7 @@ namespace
 		case Theme::HeadingIcon::kChest:
 			return 0.57f;  // the lid's top 0.275 to the box's bottom 0.86
 		case Theme::HeadingIcon::kStar:
+		case Theme::HeadingIcon::kPalette:  // the board, round about the frame's middle
 		case Theme::HeadingIcon::kNone:
 			break;
 		}
@@ -2768,11 +2786,32 @@ namespace Theme
 			}
 		}
 
-		// A heading line of plain text, in the heading's font (DrawHeadingLines).
-		void DrawHeadingLine(const char* a_text)
+		// A line icon's square on the heading's own line, and its lines.
+		// Contract: in the heading's font.
+		float HeadingLineIconSide()
 		{
+			return std::round(ImGui::GetFontSize() * kHeadingLineIconRatio);
+		}
+
+		float HeadingLineIconThick()
+		{
+			return (std::max)(1.0f, kHeadingLineIconLineWidth * g_scale);
+		}
+
+		// A heading line of plain text after `a_icon` (if any), in the heading's font (DrawHeadingLines).
+		void DrawHeadingLine(const char* a_text, HeadingIcon a_icon)
+		{
+			const bool  hasIcon = a_icon != HeadingIcon::kNone;
+			const float side = hasIcon ? HeadingLineIconSide() : 0.0f;
+			const float gap = hasIcon ? kRowIconGap * g_scale : 0.0f;
 			if (g_skin == Skin::kNordic) {
-				CentreOnLine(ImGui::CalcTextSize(a_text).x);
+				CentreOnLine(side + gap + ImGui::CalcTextSize(a_text).x);
+			}
+			if (hasIcon) {
+				const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+				ImGui::Dummy(ImVec2(side, ImGui::GetTextLineHeight()));
+				DrawIconCentredOn(ImGui::GetWindowDrawList(), a_icon, topLeft.x, topLeft.y + CapsMiddle(), side, ImGui::GetColorU32(ImGuiCol_Text), HeadingLineIconThick());
+				ImGui::SameLine(0.0f, gap);
 			}
 			ImGui::TextUnformatted(a_text);
 		}
@@ -2827,7 +2866,17 @@ namespace Theme
 
 	void HeadingText(const char* a_text, const char* a_subtitle)
 	{
-		DrawHeadingLines([a_text] { DrawHeadingLine(a_text); }, a_subtitle && *a_subtitle, [a_subtitle] {
+		HeadingText(HeadingIcon::kNone, a_text, a_subtitle);
+	}
+
+	void HeadingText(const char* a_text, std::span<const SubtitleRun> a_subtitle)
+	{
+		HeadingText(HeadingIcon::kNone, a_text, a_subtitle);
+	}
+
+	void HeadingText(HeadingIcon a_icon, const char* a_text, const char* a_subtitle)
+	{
+		DrawHeadingLines([a_text, a_icon] { DrawHeadingLine(a_text, a_icon); }, a_subtitle && *a_subtitle, [a_subtitle] {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
 			// Nordic centres a subtitle that fits on one line; a longer one wraps from the left.
 			const float width = ImGui::CalcTextSize(a_subtitle).x;
@@ -2840,21 +2889,18 @@ namespace Theme
 			ImGui::PopStyleColor(); });
 	}
 
-	void HeadingText(const char* a_text, std::span<const SubtitleRun> a_subtitle)
+	void HeadingText(HeadingIcon a_icon, const char* a_text, std::span<const SubtitleRun> a_subtitle)
 	{
-		DrawHeadingLines([a_text] { DrawHeadingLine(a_text); }, !a_subtitle.empty(), [a_subtitle] {
+		DrawHeadingLines([a_text, a_icon] { DrawHeadingLine(a_text, a_icon); }, !a_subtitle.empty(), [a_subtitle] {
 			DrawRuns(a_subtitle, { ImGui::GetColorU32(ImGuiCol_TextDisabled), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale) });  // 1px lines at 1080p
 		});
 	}
 
 	void HeadingRunText(std::span<const SubtitleRun> a_title)
 	{
-		constexpr float kHeadingIconRatio = 1.2f;      // of the heading font's size: the chest's drawing, 0.585 of its square, comes out about the capitals' height
-		constexpr float kHeadingIconLineWidth = 1.5f;  // pixels at 1080p, as the tabs'
-
 		DrawHeadingLines(
 			[a_title] {
-				DrawRuns(a_title, { ImGui::GetColorU32(ImGuiCol_Text), std::round(ImGui::GetFontSize() * kHeadingIconRatio), (std::max)(1.0f, kHeadingIconLineWidth * g_scale) });
+				DrawRuns(a_title, { ImGui::GetColorU32(ImGuiCol_Text), HeadingLineIconSide(), HeadingLineIconThick() });
 			},
 			false, [] {});
 	}
@@ -3132,6 +3178,36 @@ namespace Theme
 			return VanillaButtonWidth(a_label, false);
 		}
 		return ImGui::CalcTextSize(a_label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+	}
+
+	// Modern: as HelpButton, ImGui's button sized for what DrawButtonText draws.
+	bool Button(HeadingIcon a_icon, const char* a_label)
+	{
+		if (a_icon == HeadingIcon::kNone) {
+			return Button(a_label);
+		}
+		if (g_skin == Skin::kNordic) {
+			return PointedButton(a_label, false, a_icon);
+		}
+		if (g_skin == Skin::kVanilla) {
+			return VanillaButton(a_label, false, a_icon);
+		}
+		ImGui::PushID(a_label);
+		const bool pressed = ImGui::Button("##icon", ImVec2(ButtonWidth(a_icon, a_label), ImGui::GetFrameHeight()));
+		ImGui::PopID();
+		DrawButtonText(ImGui::GetWindowDrawList(), ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), a_label, false, a_icon);
+		return pressed;
+	}
+
+	float ButtonWidth(HeadingIcon a_icon, const char* a_label)
+	{
+		if (g_skin == Skin::kNordic) {
+			return PointedButtonWidth(a_label, false, a_icon);
+		}
+		if (g_skin == Skin::kVanilla) {
+			return VanillaButtonWidth(a_label, false, a_icon);
+		}
+		return ButtonTextWidth(a_label, false, a_icon) + ImGui::GetStyle().FramePadding.x * 2.0f;
 	}
 
 	float ButtonHeight()

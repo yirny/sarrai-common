@@ -13,7 +13,7 @@
 //                text buttons and window frame; the list headings' rule and the game's
 //                scroll bar (Vanilla and Nordic) and every skin's scroll bar fade;
 //                list rows (Modern's tick row, the SkyUI-style tick row of the
-//                Vanilla and Nordic skins) and their hover fill (Vanilla's and
+//                Vanilla and Nordic skins, the mark after a row's first cell) and their hover fill (Vanilla's and
 //                Nordic's soft ellipse); the dropdown arrows; the game's
 //                checkbox of the Vanilla and Nordic skins; the fainter field
 //                border; the selected single-choice row's mark
@@ -152,6 +152,8 @@ namespace
 	// it and the row's first column (pixels at 1080p).
 	constexpr float kRowIconRatio = 0.8f;
 	constexpr float kRowIconGap = 6.0f;
+	// A tick row's mark after its first cell (Theme::RowMark): its side, of the font size.
+	constexpr float kRowMarkRatio = 0.8f;
 	constexpr float kHeadingIconSide = 18.0f;          // pixels at 1080p: a list heading's or a label's icon (HeadingIconDrawer)
 	constexpr float kHeadingLineIconRatio = 1.2f;      // of the heading font's size: the chest's drawing, 0.585 of its square, comes out about the capitals' height
 	constexpr float kHeadingLineIconLineWidth = 1.5f;  // pixels at 1080p, as the tabs'
@@ -262,6 +264,10 @@ namespace
 	// loaded once. Render thread only.
 	std::map<std::string, IconTexture, std::less<>> g_rowIcons;
 	std::string                                     g_defaultIconKey;
+
+	// Whether the mouse is over the mark of the tick row laid out last (Theme::RowMarkHovered).
+	// Render thread only.
+	bool g_rowMarkHovered = false;
 
 	const SkinFonts& FontFilesOf(Theme::Skin a_skin)
 	{
@@ -1443,23 +1449,63 @@ namespace
 			ImVec2(a_centre.x - half * 0.6f, a_centre.y + half), tint);
 	}
 
+	// A tick row's mark's side on the back buffer (Theme::RowMark).
+	float RowMarkSide()
+	{
+		return std::round(ImGui::GetFontSize() * kRowMarkRatio);
+	}
+
+	// A tick row's mark (Theme::RowMark) after its first cell's text, which ends at `a_textEnd`
+	// on the line whose top is `a_lineTop`, through the style alpha. Returns its square on the screen.
+	ImRect DrawRowMark(ImDrawList* a_draw, float a_textEnd, float a_lineTop, const Theme::RowMark& a_mark)
+	{
+		const float side = RowMarkSide();
+		const float left = std::round(a_textEnd + kRowIconGap * g_scale);
+		const float centreY = a_lineTop + CapsMiddle();
+		const ImU32 color = ImGui::GetColorU32(IM_COL32((a_mark.rgb >> 16) & 0xFF, (a_mark.rgb >> 8) & 0xFF, a_mark.rgb & 0xFF, 255));
+		DrawIconCentredOn(a_draw, a_mark.icon, left, centreY, side, color, (std::max)(1.0f, g_scale));
+		return ImRect(left, centreY - side * 0.5f, left + side, centreY + side * 0.5f);
+	}
+
 	// A tick row's cells, each at its column (Theme::HeaderRow) from `a_textX`,
-	// centred on `a_midY`; one too long for its column ends in an ellipsis.
-	void DrawCells(ImDrawList* a_draw, float a_textX, float a_midY, float a_right, std::span<const char* const> a_cells,
-		std::span<const float> a_columnX)
+	// centred on `a_midY`; one too long for its column ends in an ellipsis. With a mark, it
+	// follows the first cell's text (DrawRowMark), that cell cut short sooner to leave it room.
+	// Returns the mark's square, an empty one without a mark.
+	ImRect DrawCells(ImDrawList* a_draw, float a_textX, float a_midY, float a_right, std::span<const char* const> a_cells,
+		std::span<const float> a_columnX, const Theme::RowMark& a_mark)
 	{
 		const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
+		ImRect      mark;
 		for (std::size_t i = 0; i < a_cells.size(); ++i) {
+			const bool   marked = i == 0 && a_mark.icon != Theme::HeadingIcon::kNone;
 			const float  left = a_textX + a_columnX[i];
-			const float  end = i + 1 < a_cells.size() ? a_textX + a_columnX[i + 1] - Theme::ColumnGap() : a_right;
+			const float  room = marked ? RowMarkSide() + kRowIconGap * g_scale : 0.0f;
+			const float  end = (i + 1 < a_cells.size() ? a_textX + a_columnX[i + 1] - Theme::ColumnGap() : a_right) - room;
 			const ImVec2 size = ImGui::CalcTextSize(a_cells[i]);
 			const ImVec2 topLeft(left, a_midY - size.y * 0.5f);
+			float        textEnd = left + size.x;
 			if (left + size.x <= end) {
 				a_draw->AddText(topLeft, color, a_cells[i]);
 			} else if (end > left) {
 				ImGui::RenderTextEllipsis(a_draw, topLeft, ImVec2(end, topLeft.y + size.y), end, a_cells[i], nullptr, &size);
+				textEnd = end;
+			} else {
+				textEnd = left;
+			}
+			if (marked) {
+				mark = DrawRowMark(a_draw, textEnd, topLeft.y, a_mark);
 			}
 		}
+		return mark;
+	}
+
+	// Notes for Theme::RowMarkHovered whether the mouse is over `a_mark`, the square DrawCells
+	// returned for the row laid out last, also inside BeginDisabled.
+	// Contract: while the row's button (LayOutListRow) is the last item.
+	void NoteRowMark(const ImRect& a_mark, const Theme::RowMark& a_style)
+	{
+		g_rowMarkHovered = a_style.icon != Theme::HeadingIcon::kNone && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) &&
+		                   ImGui::IsMouseHoveringRect(a_mark.Min, a_mark.Max);
 	}
 
 	// A tick row's icon side on the back buffer.
@@ -1485,7 +1531,8 @@ namespace
 	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the selected
 	// fill (DrawGradientFill) with an accent rule down its left edge; the hover fill while
 	// hovered. The text sits clear of the rule.
-	bool ModernRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
+	bool ModernRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon,
+		const Theme::RowMark& a_mark)
 	{
 		const float   height = ImGui::GetFrameHeight();
 		const ListRow row = LayOutListRow(a_cells[0], height);
@@ -1507,7 +1554,7 @@ namespace
 		const float textX = row.min.x + row.inset + TickTextShift();
 		const float midY = row.min.y + height * 0.5f;
 		DrawRowIcon(draw, textX, midY, a_icon);
-		DrawCells(draw, textX, midY, right, a_cells, a_columnX);
+		NoteRowMark(DrawCells(draw, textX, midY, right, a_cells, a_columnX, a_mark), a_mark);
 		return row.pressed;
 	}
 
@@ -1541,7 +1588,8 @@ namespace
 	// A SkyUI-style inventory row: while ticked, the skin's equipped mark at the left, and in
 	// Vanilla its selection bar (Nordic marks it with the mark alone); the hover fill while
 	// hovered. The mark's column stays on unticked rows so the names line up.
-	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon)
+	bool InventoryRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const Theme::RowIcon& a_icon,
+		const Theme::RowMark& a_mark)
 	{
 		const auto&   style = ImGui::GetStyle();
 		const float   height = ImGui::GetFrameHeight();
@@ -1567,7 +1615,7 @@ namespace
 		}
 		const float textX = topLeft.x + row.inset + TickTextShift();
 		DrawRowIcon(draw, textX, midY, a_icon);
-		DrawCells(draw, textX, midY, row.fillMax.x - style.FramePadding.x, a_cells, a_columnX);
+		NoteRowMark(DrawCells(draw, textX, midY, row.fillMax.x - style.FramePadding.x, a_cells, a_columnX, a_mark), a_mark);
 		return row.pressed;
 	}
 
@@ -2093,6 +2141,16 @@ namespace
 		}
 	}
 
+	// A lightning bolt, filled: from its top edge down to a step, across it, down to the tip
+	// and back up. Its points run clockwise from the top edge's left end, as ImGui's
+	// anti-aliased fill needs; it has no lines, so `a_thick` goes unused.
+	void DrawLightningIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float)
+	{
+		const std::array<ImVec2, 7> bolt{ a_frame.At(0.56f, 0.06f), a_frame.At(0.78f, 0.06f), a_frame.At(0.58f, 0.40f), a_frame.At(0.74f, 0.40f),
+			a_frame.At(0.28f, 0.94f), a_frame.At(0.41f, 0.54f), a_frame.At(0.22f, 0.54f) };
+		a_draw->AddConcavePolyFilled(bolt.data(), static_cast<int>(bolt.size()), a_color);
+	}
+
 	// A chest: a box with a domed lid, the lid's edge across the whole, a clasp hanging from
 	// that edge over the box's middle.
 	void DrawChestIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
@@ -2155,6 +2213,8 @@ namespace
 			return DrawStarIcon;
 		case Theme::HeadingIcon::kPalette:
 			return DrawPaletteIcon;
+		case Theme::HeadingIcon::kLightning:
+			return DrawLightningIcon;
 		case Theme::HeadingIcon::kNone:
 			break;
 		}
@@ -2178,7 +2238,8 @@ namespace
 		case Theme::HeadingIcon::kChest:
 			return 0.57f;  // the lid's top 0.275 to the box's bottom 0.86
 		case Theme::HeadingIcon::kStar:
-		case Theme::HeadingIcon::kPalette:  // the board, round about the frame's middle
+		case Theme::HeadingIcon::kPalette:    // the board, round about the frame's middle
+		case Theme::HeadingIcon::kLightning:  // the top 0.06 to the tip 0.94
 		case Theme::HeadingIcon::kNone:
 			break;
 		}
@@ -3312,9 +3373,14 @@ namespace Theme
 		return { iconLeft + OutfitIconSide() * 0.5f, iconLeft + OutfitIconRoom() };
 	}
 
-	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const RowIcon& a_icon)
+	bool TickRow(std::span<const char* const> a_cells, std::span<const float> a_columnX, bool* a_ticked, const RowIcon& a_icon, const RowMark& a_mark)
 	{
-		return g_skin == Skin::kModern ? ModernRow(a_cells, a_columnX, a_ticked, a_icon) : InventoryRow(a_cells, a_columnX, a_ticked, a_icon);
+		return g_skin == Skin::kModern ? ModernRow(a_cells, a_columnX, a_ticked, a_icon, a_mark) : InventoryRow(a_cells, a_columnX, a_ticked, a_icon, a_mark);
+	}
+
+	bool RowMarkHovered()
+	{
+		return g_rowMarkHovered;
 	}
 
 	float RowIconRoom()

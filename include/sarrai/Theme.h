@@ -245,6 +245,10 @@ namespace Theme
 	// ellipse and NORDIC UI's selection line under the row in the hover colour.
 	// With `icon`, the icon's texture is drawn where the row's text starts, centred on the row,
 	// tinted; a key with no texture draws nothing.
+	// With `mark`, its drawing follows the first cell's text, 6px after it, 0.8 of the font
+	// size square, centred on the capitals, in its colour; a first cell too long for its column
+	// is cut short sooner to leave the mark room.
+	// RowMarkHovered then tells whether the mouse is over it.
 	// Contract: inside BeginList, one cell per column; the cells are shown as is
 	// and the first is the row's ImGui ID, so PushID around rows whose first cells
 	// may repeat. Rows with icons start their first column at RowIconRoom.
@@ -254,7 +258,16 @@ namespace Theme
 		std::uint32_t    rgb = 0;    // the white icon's tint, 0xRRGGBB
 		HeadingIcon      line = {};  // OutfitRow only: this line drawing in the text colour, in place of `key`
 	};
-	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked, const RowIcon& icon = {});
+	struct RowMark
+	{
+		HeadingIcon   icon = {};  // kNone for none
+		std::uint32_t rgb = 0;    // its colour, 0xRRGGBB
+	};
+	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked, const RowIcon& icon = {}, const RowMark& mark = {});
+
+	// Whether the mouse is over the mark of the TickRow laid out last, also on a row inside
+	// BeginDisabled, for the caller's tooltip; false for a row without one or under a popup.
+	bool RowMarkHovered();
 
 	// Pixels on the back buffer a tick row's icon takes left of its first column: the icon,
 	// 0.8 of the row's height square, and a 6px gap; 0 when no icon texture loaded.
@@ -290,7 +303,8 @@ namespace Theme
 		kWardrobe,     // the Wardrobe tab's wardrobe
 		kChest,        // the Chests tab's chest
 		kStar,         // the Situations tab's star
-		kPalette       // the Appearance tab's palette
+		kPalette,      // the Appearance tab's palette
+		kLightning     // a lightning bolt, filled
 	};
 
 	// A part of HeadingText's run subtitle or of HeadingRunText's line. With `icon` (a square as LabelText draws it) or

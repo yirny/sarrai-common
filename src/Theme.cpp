@@ -105,7 +105,7 @@ namespace
 	// A tab of the tab column, a square with its fill, and the room between the tabs and the
 	// rule beside them (pixels at 1080p).
 	constexpr float kTabSide = 34.0f;
-	constexpr float kTabRuleGap = 8.0f;
+	constexpr float kTabRuleGap = 2.0f;
 	// The help mark a button, link or label carries for its tooltip.
 	constexpr const char* kHelpMark = "(?)";
 	// Between the tabs of a page heading made of tabs (BeginHeadingTabs).

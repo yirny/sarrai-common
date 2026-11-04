@@ -794,7 +794,8 @@ namespace
 	void SetVanillaStyle(ImGuiStyle& a_style, const Theme::Palette& a_palette)
 	{
 		SetSquareFrames(a_style);
-		a_style.WindowBorderSize = 0.0f;  // DecorateWindow draws the main window's frame
+		a_style.WindowBorderSize = 0.0f;               // DecorateWindow draws the main window's frame
+		a_style.WindowPadding = ImVec2(36.0f, 24.0f);  // room beside the corner knots (DrawVanillaCorners); the tabs go below them (TabTopGap)
 		SetSquareColors(a_style, a_palette);
 	}
 
@@ -3510,9 +3511,17 @@ namespace Theme
 
 	float TabTopGap()
 	{
-		constexpr float kNordicTopGap = 8.0f;  // pixels at 1080p, below the corner knot
+		constexpr float kNordicTopGap = 8.0f;    // pixels at 1080p, below the corner knot
+		constexpr float kVanillaTopGap = 12.0f;  // pixels at 1080p, below the item card knot
 
-		return g_skin == Skin::kNordic ? kNordicTopGap * g_scale : 0.0f;
+		switch (g_skin) {
+		case Skin::kNordic:
+			return kNordicTopGap * g_scale;
+		case Skin::kVanilla:
+			return kVanillaTopGap * g_scale;
+		default:
+			return 0.0f;
+		}
 	}
 
 	// The rope is tiled from the top, its last repeat cut short at the bottom. The clip rect

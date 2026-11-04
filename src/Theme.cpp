@@ -94,6 +94,9 @@ namespace
 	// The dropdown popup's padding in Vanilla and Nordic, which would otherwise
 	// take the window's (Nordic's is wider for its corner ornaments; pixels at 1080p).
 	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
+	// The Vanilla and Nordic windows' padding before each skin widens its main window's for
+	// its corner ornaments; Vanilla's popups and tooltips keep it (PushPopupPadding; pixels at 1080p).
+	constexpr ImVec2 kSquareWindowPadding{ 20.0f, 16.0f };
 	// Width of Modern's accent rule on a selected row's left edge (pixels at 1080p).
 	constexpr float kAccentRuleWidth = 2.0f;
 	// Clear room between that rule and the row's text (pixels at 1080p).
@@ -740,7 +743,7 @@ namespace
 		a_style.ChildBorderSize = 1.0f;
 		a_style.FrameBorderSize = 1.0f;
 		a_style.PopupBorderSize = 1.0f;
-		a_style.WindowPadding = ImVec2(20.0f, 16.0f);
+		a_style.WindowPadding = kSquareWindowPadding;
 		a_style.FramePadding = ImVec2(10.0f, 6.0f);
 		a_style.ItemSpacing = ImVec2(10.0f, 8.0f);
 		a_style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
@@ -3721,20 +3724,37 @@ namespace Theme
 	void Tooltip(const char* a_text)
 	{
 		PushTooltipFont();
+		PushPopupPadding();
 		ImGui::SetTooltip("%s", a_text);
+		PopPopupPadding();
 		ImGui::PopFont();
 	}
 
 	void BeginTooltip()
 	{
 		PushTooltipFont();
+		PushPopupPadding();
 		ImGui::BeginTooltip();
+		PopPopupPadding();
 	}
 
 	void EndTooltip()
 	{
 		ImGui::EndTooltip();
 		ImGui::PopFont();
+	}
+
+	// Always one push, the style's own padding outside Vanilla, so every push has its pop.
+	// Scaled as ImGuiStyle::ScaleAllSizes scales the style's (truncated).
+	void PushPopupPadding()
+	{
+		const ImVec2 padding = g_skin == Skin::kVanilla ? ImVec2(std::trunc(kSquareWindowPadding.x * g_scale), std::trunc(kSquareWindowPadding.y * g_scale)) : ImGui::GetStyle().WindowPadding;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+	}
+
+	void PopPopupPadding()
+	{
+		ImGui::PopStyleVar();
 	}
 
 	float ListPaddingY()

@@ -3802,8 +3802,9 @@ namespace Theme
 
 	// Three click areas side by side, edge to edge of the list as LayOutListRow's: the name and
 	// its count select, the chevron with its padding and the rule fold, Edit with its padding to
-	// the right end; with no chevron the name's area runs on to Edit's. The name's fills and mark
-	// are a selected SelectRow's.
+	// the right end; with no chevron the name's area runs on to Edit's. A die that is a button
+	// lies over the name's area, the die's square wide and the heading tall, and takes its hover
+	// and clicks there. The name's fills and mark are a selected SelectRow's.
 	HeadingClick SituationHeading(const char* a_name, const SituationHeadingLook& a_look)
 	{
 		constexpr const char* kEdit = "Edit";
@@ -3844,8 +3845,12 @@ namespace Theme
 		const float editX = fillMax.x - SituationNameInset() - editSize.x;  // as far in from the right end as the name from the left
 		const float editLeft = editX - pad;
 		const float foldLeft = a_look.foldable ? chevronX - pad : editLeft;
+		const bool  diceButton = a_look.random && a_look.diceButton;
 
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
+		if (diceButton) {
+			ImGui::SetNextItemAllowOverlap();  // the die's button, submitted later, takes the hover over it
+		}
 		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height));
 		const bool selectHovered = ImGui::IsItemHovered();
 		bool       fold = false;
@@ -3858,6 +3863,18 @@ namespace Theme
 		ImGui::SameLine(0.0f, 0.0f);
 		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height));
 		const bool editHovered = ImGui::IsItemHovered();
+		// Submitted last, at the start of the heading's line: the next line starts where it did.
+		const ImVec2 diceMin(diceLeft, cursor.y);
+		const ImVec2 diceMax(diceLeft + diceSide, cursor.y + height);
+		bool         dice = false;
+		bool         diceHovered = false;
+		if (diceButton) {
+			ImGui::SetCursorScreenPos(diceMin);
+			dice = ImGui::InvisibleButton("##dice", ImVec2(diceSide, height));
+			diceHovered = ImGui::IsItemHovered();
+		} else if (a_look.random) {
+			diceHovered = selectHovered && ImGui::IsMouseHoveringRect(diceMin, diceMax);
+		}
 
 		auto* draw = ImGui::GetWindowDrawList();
 		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered, 0.0f);
@@ -3872,7 +3889,7 @@ namespace Theme
 		DrawStarIcon(draw, IconFrame{ ImVec2(starX, midY - iconSide * 0.5f), iconSide }, nameColor, thick);
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
 		if (a_look.random) {
-			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, grey, thick);
+			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, diceButton && diceHovered ? LinkColor(true) : grey, thick);
 		}
 
 		PushSmallFont();
@@ -3891,6 +3908,12 @@ namespace Theme
 		PopSmallFont();
 		const float ruleLeft = (a_look.foldable ? chevronX + side : textRight) + kTextRuleGap * g_scale;
 		DrawTextRule(draw, ruleLeft, editX - kTextRuleGap * g_scale, midY);
+		if (diceHovered && a_look.diceTip) {
+			Tooltip(a_look.diceTip);
+		}
+		if (dice) {
+			return HeadingClick::kDice;
+		}
 		if (edit) {
 			return HeadingClick::kEdit;
 		}

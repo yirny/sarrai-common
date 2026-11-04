@@ -375,25 +375,28 @@ namespace Theme
 		kNone,
 		kSelect,  // left of the chevron
 		kFold,    // the chevron, with its padding, to Edit
-		kEdit     // Edit, with its padding, to the list's right end
+		kEdit,    // Edit, with its padding, to the list's right end
+		kDice     // the die, while it is a button (SituationHeadingLook::diceButton)
 	};
 
 	struct SituationHeadingLook
 	{
-		int  count = -1;        // shown as "(count)" after the name; -1 for none
-		bool random = false;    // a die between the name and the count: the outfit is picked at random
-		bool open = true;       // the chevron points down; folded, right
-		bool foldable = true;   // it has rows to fold: the chevron and its click area show
-		bool selected = false;  // marked and filled as a selected SelectRow
-		bool dim = false;       // the name greyed
+		int         count = -1;          // shown as "(count)" after the name; -1 for none
+		bool        random = false;      // a die between the name and the count: the outfit is picked at random
+		bool        diceButton = false;  // with `random`: the die is a button of its own, lit while hovered
+		const char* diceTip = nullptr;   // with `random`: shown while the die is hovered, a button or not; null for none
+		bool        open = true;         // the chevron points down; folded, right
+		bool        foldable = true;     // it has rows to fold: the chevron and its click area show
+		bool        selected = false;    // marked and filled as a selected SelectRow
+		bool        dim = false;         // the name greyed
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
 	// the situation star (the Situations tab's), a square 4px short of the name's line height in
 	// the name's colour, 14px in from its left edge, level with the rows' grip dots under it
 	// (Grip::kName), the select mark left of it; `name` 6px after the star; with `random` a die after it, a square
-	// 4px short of its line height, greyed, the die's outline ItemInnerSpacing.x from the name and from the
-	// count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
+	// 4px short of its line height, greyed (lit while hovered as a button), the die's outline ItemInnerSpacing.x
+	// from the name and from the count; its count after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a list heading rule, and 12px on `Edit` at
 	// the list's right end, in the small font, greyed and lit while hovered. A hovered one left
 	// of the chevron gets the row's hover fill.

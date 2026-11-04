@@ -4,13 +4,13 @@
 //   Constants  - font files per skin
 //   Fonts      - default font, each skin's body/heading fonts, Windows fallback fonts
 //   Styles     - one ImGuiStyle per skin, in its palette's colours, and its resolution scale
-//   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow and SkyUI's
-//                MCM header rule (white alpha masks), the game's and NORDIC UI's
+//   Textures   - NORDIC UI's corner knot, heading rope and MCM page arrow, SkyUI's
+//                MCM header rule and the game's item card knot (white alpha masks), the game's and NORDIC UI's
 //                equipped-item marks, the game's checkbox, dropdown arrow and scroll
 //                arrow; the row hover glow, made in code; the row icons (IconFile),
 //                each with its halvings
 //   Ornaments  - Nordic's corner knots, heading rule and pointed button frame; Vanilla's
-//                text buttons and window frame; the list headings' rule and the game's
+//                text buttons and window frame with its corner knots; the list headings' rule and the game's
 //                scroll bar (Vanilla and Nordic) and every skin's scroll bar fade;
 //                list rows (Modern's tick row, the SkyUI-style tick row of the
 //                Vanilla and Nordic skins, the mark after a row's first cell) and their hover fill (Vanilla's and
@@ -34,7 +34,7 @@
 // this plugin (OFL): Jost, Oswald and Sovngarde.
 // Nordic's ornaments and equipped mark are NORDIC UI's own art (used with the
 // author's open permission, see textures/NORDIC-UI-CREDITS.txt); Vanilla's
-// equipped mark and both skins' checkbox and scroll arrows are the game's own
+// equipped mark and corner knots and both skins' checkbox and scroll arrows are the game's own
 // (textures/BETHESDA-CREDITS.txt), the track between them drawn in code after the game's; both skins' list heading rule is SkyUI's
 // (textures/SKYUI-CREDITS.txt). A skin whose font files are missing draws
 // with ImGui's default font; missing textures fall back to plain lines and
@@ -94,6 +94,9 @@ namespace
 	// The dropdown popup's padding in Vanilla and Nordic, which would otherwise
 	// take the window's (Nordic's is wider for its corner ornaments; pixels at 1080p).
 	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
+	// The Vanilla and Nordic windows' padding before each skin widens its main window's for
+	// its corner ornaments; Vanilla's popups and tooltips keep it (PushPopupPadding; pixels at 1080p).
+	constexpr ImVec2 kSquareWindowPadding{ 20.0f, 16.0f };
 	// Width of Modern's accent rule on a selected row's left edge (pixels at 1080p).
 	constexpr float kAccentRuleWidth = 2.0f;
 	// Clear room between that rule and the row's text (pixels at 1080p).
@@ -243,6 +246,7 @@ namespace
 	Ornament    g_selectArrow{ nullptr, ImVec2(15.0f, 16.0f) };      // NORDIC UI's MCM page arrow, a white mask tinted on draw
 	Ornament    g_headingKnot{ nullptr, ImVec2(339.0f, 22.0f) };     // SkyUI's MCM header rule, a white mask tinted on draw; sized by DrawTextRule
 	Ornament    g_scrollArrow{ nullptr, ImVec2(18.0f, 25.5f) };      // the game's scroll arrow, pointing up, in its own colours; as wide as the bar
+	Ornament    g_vanillaCorner{ nullptr, ImVec2(43.5f, 43.5f) };    // the game's item card knot, top left (29 of its units at 1.5), a white mask tinted on draw
 	Ornament    g_hoverGlow{ nullptr, ImVec2(0.0f, 0.0f) };          // a white ellipse fading out to its edges (MakeHoverGlow), stretched over a hovered row
 
 	// A list's or dropdown's scroll bar fade (UpdateScrollbarFade), by the ImGui ID its
@@ -739,7 +743,7 @@ namespace
 		a_style.ChildBorderSize = 1.0f;
 		a_style.FrameBorderSize = 1.0f;
 		a_style.PopupBorderSize = 1.0f;
-		a_style.WindowPadding = ImVec2(20.0f, 16.0f);
+		a_style.WindowPadding = kSquareWindowPadding;
 		a_style.FramePadding = ImVec2(10.0f, 6.0f);
 		a_style.ItemSpacing = ImVec2(10.0f, 8.0f);
 		a_style.ItemInnerSpacing = ImVec2(8.0f, 6.0f);
@@ -793,7 +797,8 @@ namespace
 	void SetVanillaStyle(ImGuiStyle& a_style, const Theme::Palette& a_palette)
 	{
 		SetSquareFrames(a_style);
-		a_style.WindowBorderSize = 0.0f;  // DecorateWindow draws the main window's frame
+		a_style.WindowBorderSize = 0.0f;               // DecorateWindow draws the main window's frame
+		a_style.WindowPadding = ImVec2(36.0f, 24.0f);  // room beside the corner knots (DrawVanillaCorners); the tabs go below them (TabTopGap)
 		SetSquareColors(a_style, a_palette);
 	}
 
@@ -1190,13 +1195,16 @@ namespace
 	}
 
 	// A frame `a_width` wide just inside the rectangle from `a_min` to `a_max`, of four
-	// rectangles that never overlap, so a translucent colour stays even.
-	void FillFrame(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_width, ImU32 a_color)
+	// rectangles that never overlap, so a translucent colour stays even. `a_clear` leaves that
+	// much of each side out at both ends, for corner ornaments that carry the frame there.
+	void FillFrame(ImDrawList* a_draw, ImVec2 a_min, ImVec2 a_max, float a_width, ImU32 a_color, float a_clear = 0.0f)
 	{
-		a_draw->AddRectFilled(a_min, ImVec2(a_max.x, a_min.y + a_width), a_color);
-		a_draw->AddRectFilled(ImVec2(a_min.x, a_max.y - a_width), a_max, a_color);
-		a_draw->AddRectFilled(ImVec2(a_min.x, a_min.y + a_width), ImVec2(a_min.x + a_width, a_max.y - a_width), a_color);
-		a_draw->AddRectFilled(ImVec2(a_max.x - a_width, a_min.y + a_width), ImVec2(a_max.x, a_max.y - a_width), a_color);
+		const float top = a_min.y + (std::max)(a_width, a_clear);
+		const float bottom = a_max.y - (std::max)(a_width, a_clear);
+		a_draw->AddRectFilled(ImVec2(a_min.x + a_clear, a_min.y), ImVec2(a_max.x - a_clear, a_min.y + a_width), a_color);
+		a_draw->AddRectFilled(ImVec2(a_min.x + a_clear, a_max.y - a_width), ImVec2(a_max.x - a_clear, a_max.y), a_color);
+		a_draw->AddRectFilled(ImVec2(a_min.x, top), ImVec2(a_min.x + a_width, bottom), a_color);
+		a_draw->AddRectFilled(ImVec2(a_max.x - a_width, top), ImVec2(a_max.x, bottom), a_color);
 	}
 
 	// The width of the band of the rule colour inside Vanilla's main window edge
@@ -1209,9 +1217,50 @@ namespace
 		return (std::max)(1.0f, std::round(kWidth * g_scale));
 	}
 
+	// The game's item card knots at the window's four corners: the top-left one
+	// (vanilla-corner.png), mirrored into the others by drawing it from the corner inwards, in
+	// the band's colour, over a patch of the window's glass where it reaches past the outline
+	// `a_outline` wide. Each knot carries the band's first stretch from its corner; returns how
+	// far along each side that runs, where the band (translucent, never under a knot) starts.
+	// Without the texture: draws nothing and returns 0.
+	float DrawVanillaCorners(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_bottomRight, float a_outline)
+	{
+		// Pixels at 1080p, the item card's own (its 1280x720 stage at 1.5): how far the knot's
+		// outer corner sits outside the window's, and the glass from there along each side.
+		constexpr float kReach = 9.0f;
+		constexpr float kBacking = 30.0f;
+
+		if (!g_vanillaCorner.view) {
+			return 0.0f;
+		}
+		const float  reach = std::round(kReach * g_scale);
+		const float  side = std::round(g_vanillaCorner.size.x * g_scale);
+		const float  backing = std::round(kBacking * g_scale);
+		const ImU32  glass = ImGui::GetColorU32(ImGuiCol_WindowBg);
+		const ImU32  band = ImGui::GetColorU32(ImGuiCol_Border);
+		const ImVec2 corners[] = { a_topLeft, ImVec2(a_bottomRight.x, a_topLeft.y), ImVec2(a_topLeft.x, a_bottomRight.y), a_bottomRight };
+		a_draw->PushClipRect(ImVec2(a_topLeft.x - reach, a_topLeft.y - reach), ImVec2(a_bottomRight.x + reach, a_bottomRight.y + reach), false);
+		for (const ImVec2& corner : corners) {
+			const float x = corner.x == a_topLeft.x ? 1.0f : -1.0f;  // inwards
+			const float y = corner.y == a_topLeft.y ? 1.0f : -1.0f;
+			const auto  at = [&](float a_dx, float a_dy) { return ImVec2(corner.x + x * a_dx, corner.y + y * a_dy); };
+			const auto  fill = [&](ImVec2 a_a, ImVec2 a_b) {
+				a_draw->AddRectFilled(ImVec2((std::min)(a_a.x, a_b.x), (std::min)(a_a.y, a_b.y)), ImVec2((std::max)(a_a.x, a_b.x), (std::max)(a_a.y, a_b.y)), glass);
+			};
+			// The glass beyond the outline: a strip along the top or bottom, then one down the
+			// side, meeting the outline but never on it, so the translucent glass stays even.
+			fill(at(-reach, -reach), at(backing - reach, -a_outline));
+			fill(at(-reach, -a_outline), at(-a_outline, backing - reach));
+			a_draw->AddImage(g_vanillaCorner.Id(), at(-reach, -reach), at(side - reach, side - reach), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), band);
+		}
+		a_draw->PopClipRect();
+		return side - reach;
+	}
+
 	// Vanilla's main window frame: a band of the rule colour inside the window's edge, and
-	// outside it a band of the window's own glass. The clip rect is the frame's own, so the
-	// outer band shows past the window.
+	// outside it a band of the window's own glass, with the game's item card knots at the
+	// corners (DrawVanillaCorners). The clip rect is the frame's own, so the outer band shows
+	// past the window.
 	void DrawVanillaFrame()
 	{
 		constexpr float kOutlineWidth = 4.0f;  // pixels at 1080p, the glass outside the band
@@ -1225,8 +1274,9 @@ namespace
 		const ImVec2 outerTopLeft(topLeft.x - outline, topLeft.y - outline);
 		const ImVec2 outerBottomRight(bottomRight.x + outline, bottomRight.y + outline);
 		draw->PushClipRect(outerTopLeft, outerBottomRight, false);
-		FillFrame(draw, topLeft, bottomRight, band, ImGui::GetColorU32(ImGuiCol_Border));
 		FillFrame(draw, outerTopLeft, outerBottomRight, outline, ImGui::GetColorU32(ImGuiCol_WindowBg));
+		const float clear = DrawVanillaCorners(draw, topLeft, bottomRight, outline);
+		FillFrame(draw, topLeft, bottomRight, band, ImGui::GetColorU32(ImGuiCol_Border), clear);
 		draw->PopClipRect();
 	}
 
@@ -2714,6 +2764,7 @@ namespace Theme
 			LoadOrnament(a_device, wic.Get(), folder, L"nordic-select-arrow.png", g_selectArrow);
 			LoadOrnament(a_device, wic.Get(), folder, L"skyui-heading-rule.png", g_headingKnot);
 			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-scroll-arrow.png", g_scrollArrow);
+			LoadOrnament(a_device, wic.Get(), folder, L"vanilla-corner.png", g_vanillaCorner);
 			LoadRowIcons(a_device, wic.Get(), std::move(a_icons));
 		}
 		MakeHoverGlow(a_device);
@@ -3463,9 +3514,17 @@ namespace Theme
 
 	float TabTopGap()
 	{
-		constexpr float kNordicTopGap = 8.0f;  // pixels at 1080p, below the corner knot
+		constexpr float kNordicTopGap = 8.0f;    // pixels at 1080p, below the corner knot
+		constexpr float kVanillaTopGap = 12.0f;  // pixels at 1080p, below the item card knot
 
-		return g_skin == Skin::kNordic ? kNordicTopGap * g_scale : 0.0f;
+		switch (g_skin) {
+		case Skin::kNordic:
+			return kNordicTopGap * g_scale;
+		case Skin::kVanilla:
+			return kVanillaTopGap * g_scale;
+		default:
+			return 0.0f;
+		}
 	}
 
 	// The rope is tiled from the top, its last repeat cut short at the bottom. The clip rect
@@ -3665,20 +3724,37 @@ namespace Theme
 	void Tooltip(const char* a_text)
 	{
 		PushTooltipFont();
+		PushPopupPadding();
 		ImGui::SetTooltip("%s", a_text);
+		PopPopupPadding();
 		ImGui::PopFont();
 	}
 
 	void BeginTooltip()
 	{
 		PushTooltipFont();
+		PushPopupPadding();
 		ImGui::BeginTooltip();
+		PopPopupPadding();
 	}
 
 	void EndTooltip()
 	{
 		ImGui::EndTooltip();
 		ImGui::PopFont();
+	}
+
+	// Always one push, the style's own padding outside Vanilla, so every push has its pop.
+	// Scaled as ImGuiStyle::ScaleAllSizes scales the style's (truncated).
+	void PushPopupPadding()
+	{
+		const ImVec2 padding = g_skin == Skin::kVanilla ? ImVec2(std::trunc(kSquareWindowPadding.x * g_scale), std::trunc(kSquareWindowPadding.y * g_scale)) : ImGui::GetStyle().WindowPadding;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, padding);
+	}
+
+	void PopPopupPadding()
+	{
+		ImGui::PopStyleVar();
 	}
 
 	float ListPaddingY()

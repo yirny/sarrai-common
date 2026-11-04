@@ -625,4 +625,11 @@ namespace Theme
 	void Tooltip(const char* text);
 	void BeginTooltip();
 	void EndTooltip();
+
+	// The padding of popups: Vanilla's keep the square skins' while its main window pads wider
+	// for the corner knots, which popups do not draw; the other skins keep the style's. Push
+	// just before a popup begins (ImGui reads the padding as it begins) and pop right after.
+	// The tooltips above do this themselves.
+	void PushPopupPadding();
+	void PopPopupPadding();
 }

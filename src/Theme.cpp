@@ -3800,15 +3800,16 @@ namespace Theme
 		ImGui::PopFont();
 	}
 
-	// Three click areas side by side, edge to edge of the list as LayOutListRow's: the name and
-	// its count select, the chevron with its padding and the rule fold, Edit with its padding to
-	// the right end; with no chevron the name's area runs on to Edit's. The name's fills and mark
-	// are a selected SelectRow's.
+	// Click areas side by side, edge to edge of the list as LayOutListRow's: the name and its
+	// count select, the chevron with its padding and the rule fold, the die with its padding,
+	// Edit with its padding to the right end; with no chevron the name's area runs on to the
+	// die's, with no die to Edit's. A die that is not a button does nothing when clicked. The
+	// name's fills and mark are a selected SelectRow's.
 	HeadingClick SituationHeading(const char* a_name, const SituationHeadingLook& a_look)
 	{
 		constexpr const char* kEdit = "Edit";
 		constexpr float       kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
-		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron and Edit
+		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron, the die and Edit
 		constexpr float       kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
 		constexpr float       kLineWidth = 1.0f;     // pixels at 1080p, the star's, the die's and the chevron's
 
@@ -3833,17 +3834,16 @@ namespace Theme
 		const float  side = ImGui::GetFontSize() * kChevronRatio;
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
-		const float gapX = ImGui::GetStyle().ItemInnerSpacing.x;
-		// The die's outline, not its square, sits gapX from the name and from the count.
-		const float diceSide = iconSide;
-		const float diceLeft = nameRight + gapX - diceSide * kDiceInset;  // its square's
-		const float afterName = a_look.random ? nameRight + gapX + diceSide * (1.0f - kDiceInset * 2.0f) : nameRight;
-		const float countX = afterName + gapX;
-		const float textRight = count.empty() ? afterName : countX + countSize.x;
+		const float countX = nameRight + ImGui::GetStyle().ItemInnerSpacing.x;
+		const float textRight = count.empty() ? nameRight : countX + countSize.x;
 		const float chevronX = textRight + pad * 2.0f;
 		const float editX = fillMax.x - SituationNameInset() - editSize.x;  // as far in from the right end as the name from the left
 		const float editLeft = editX - pad;
-		const float foldLeft = a_look.foldable ? chevronX - pad : editLeft;
+		// The die's square ends `pad` short of Edit's area; its own area is `pad` wider on each side.
+		const float diceSide = iconSide;
+		const float diceLeft = editLeft - pad - diceSide;                      // its square's
+		const float diceAreaLeft = a_look.random ? diceLeft - pad : editLeft;  // with no die, Edit's area's
+		const float foldLeft = a_look.foldable ? chevronX - pad : diceAreaLeft;
 
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
 		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height));
@@ -3852,8 +3852,15 @@ namespace Theme
 		bool       foldHovered = false;
 		if (a_look.foldable) {
 			ImGui::SameLine(0.0f, 0.0f);
-			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, editLeft - foldLeft), height));
+			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, diceAreaLeft - foldLeft), height));
 			foldHovered = ImGui::IsItemHovered();
+		}
+		bool dice = false;
+		bool diceHovered = false;
+		if (a_look.random) {
+			ImGui::SameLine(0.0f, 0.0f);
+			dice = ImGui::InvisibleButton("##dice", ImVec2((std::max)(1.0f, editLeft - diceAreaLeft), height)) && a_look.diceButton;
+			diceHovered = ImGui::IsItemHovered();
 		}
 		ImGui::SameLine(0.0f, 0.0f);
 		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height));
@@ -3872,7 +3879,7 @@ namespace Theme
 		DrawStarIcon(draw, IconFrame{ ImVec2(starX, midY - iconSide * 0.5f), iconSide }, nameColor, thick);
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
 		if (a_look.random) {
-			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, grey, thick);
+			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);
 		}
 
 		PushSmallFont();
@@ -3890,7 +3897,14 @@ namespace Theme
 		draw->AddText(ImVec2(editX, midY - editSize.y * 0.5f), editHovered ? LinkColor(true) : grey, kEdit);
 		PopSmallFont();
 		const float ruleLeft = (a_look.foldable ? chevronX + side : textRight) + kTextRuleGap * g_scale;
-		DrawTextRule(draw, ruleLeft, editX - kTextRuleGap * g_scale, midY);
+		const float ruleEnd = a_look.random ? diceLeft + diceSide * kDiceInset : editX;  // the die's outline, or Edit's text
+		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
+		if (diceHovered && a_look.diceTip) {
+			Tooltip(a_look.diceTip);
+		}
+		if (dice) {
+			return HeadingClick::kDice;
+		}
 		if (edit) {
 			return HeadingClick::kEdit;
 		}

@@ -245,10 +245,10 @@ namespace Theme
 	// ellipse and NORDIC UI's selection line under the row in the hover colour.
 	// With `icon`, the icon's texture is drawn where the row's text starts, centred on the row,
 	// tinted; a key with no texture draws nothing.
-	// With `mark`, its drawing follows the first cell's text, 6px after it, 0.8 of the font
-	// size square, centred on the capitals, in its colour; a first cell too long for its column
-	// is cut short sooner to leave the mark room.
-	// RowMarkHovered then tells whether the mouse is over it.
+	// With `marks`, their drawings follow the first cell's text in order, each 6px after the
+	// one before it (the first after the text), 0.8 of the font size square, centred on the
+	// capitals, each in its colour; a first cell too long for its column is cut short sooner
+	// to leave them room. RowMarkHovered then tells which one the mouse is over.
 	// Contract: inside BeginList, one cell per column; the cells are shown as is
 	// and the first is the row's ImGui ID, so PushID around rows whose first cells
 	// may repeat. Rows with icons start their first column at RowIconRoom.
@@ -260,14 +260,17 @@ namespace Theme
 	};
 	struct RowMark
 	{
-		HeadingIcon   icon = {};  // kNone for none
+		HeadingIcon   icon = {};  // kNone for none; a mark in `marks` has one
 		std::uint32_t rgb = 0;    // its colour, 0xRRGGBB
 	};
+	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked, const RowIcon& icon, std::span<const RowMark> marks);
+	// TickRow with `mark` alone, or no mark when its icon is kNone.
 	bool TickRow(std::span<const char* const> cells, std::span<const float> columnX, bool* ticked, const RowIcon& icon = {}, const RowMark& mark = {});
 
-	// Whether the mouse is over the mark of the TickRow laid out last, also on a row inside
-	// BeginDisabled, for the caller's tooltip; false for a row without one or under a popup.
-	bool RowMarkHovered();
+	// Whether the mouse is over the mark at index `mark` of the TickRow laid out last, also on
+	// a row inside BeginDisabled, for the caller's tooltip; false for a row without it or under
+	// a popup.
+	bool RowMarkHovered(std::size_t mark = 0);
 
 	// Pixels on the back buffer a tick row's icon takes left of its first column: the icon,
 	// 0.8 of the row's height square, and a 6px gap; 0 when no icon texture loaded.
@@ -304,7 +307,8 @@ namespace Theme
 		kChest,        // the Chests tab's chest
 		kStar,         // the Situations tab's star
 		kPalette,      // the Appearance tab's palette
-		kLightning     // a lightning bolt, filled
+		kLightning,    // a lightning bolt, filled
+		kHammer        // a smith's hammer, filled
 	};
 
 	// A part of HeadingText's run subtitle or of HeadingRunText's line. With `icon` (a square as LabelText draws it) or

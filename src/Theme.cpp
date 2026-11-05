@@ -179,11 +179,14 @@ namespace
 		{ L"Jost-400-Book.ttf", 20.0f, L"segoeui.ttf" },
 		{ L"Jost-500-Medium.ttf", 26.0f, L"seguisb.ttf" } };
 	constexpr SkinFonts kVanillaFonts{ "Vanilla",
-		{ L"Oswald-Regular.ttf", 22.0f, L"segoeui.ttf" },
-		{ L"Oswald-SemiBold.ttf", 28.0f, L"seguisb.ttf" } };
+		{ L"Oswald-Regular.ttf", 24.0f, L"segoeui.ttf" },
+		{ L"Oswald-SemiBold.ttf", 30.0f, L"seguisb.ttf" } };
 	constexpr SkinFonts kNordicFonts{ "Nordic",
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };
+	// The font size Vanilla's row icons are sized by (pixels at 1080p): its body font's before
+	// it grew to 24px, so the icons stayed as they were (RowIconSide, OutfitIconSide).
+	constexpr float kVanillaIconFontSize = 22.0f;
 
 	// The light grey of the game's scroll bar (#cccccc): its track's inner lines, and in Vanilla and
 	// Nordic the thumb's rim and its fill while held (DrawSkinScrollbar).
@@ -1579,10 +1582,12 @@ namespace
 		}
 	}
 
-	// A tick row's icon side on the back buffer.
+	// A tick row's icon side on the back buffer: of the frame height, Vanilla's taken with
+	// kVanillaIconFontSize in place of its font.
 	float RowIconSide()
 	{
-		return std::round(ImGui::GetFrameHeight() * kRowIconRatio);
+		const float font = g_skin == Theme::Skin::kVanilla ? kVanillaIconFontSize * g_scale : ImGui::GetFontSize();
+		return std::round((font + ImGui::GetStyle().FramePadding.y * 2.0f) * kRowIconRatio);
 	}
 
 	// A tick row's icon (Theme::RowIcon), RowIconSide square, its left edge at `a_left` and
@@ -2638,10 +2643,10 @@ namespace
 		DrawTintedOutfitIcon(a_draw, a_icon.key, a_topLeft, a_side, tint);
 	}
 
-	// An outfit row's icon: a square of the text height.
+	// An outfit row's icon: a square of the text height (kVanillaIconFontSize in Vanilla).
 	float OutfitIconSide()
 	{
-		return std::round(ImGui::GetTextLineHeight());
+		return std::round(g_skin == Theme::Skin::kVanilla ? kVanillaIconFontSize * g_scale : ImGui::GetTextLineHeight());
 	}
 
 	// The room an outfit row's icon takes before the name, the gap included; 0 when even the
@@ -3429,7 +3434,7 @@ namespace Theme
 
 	int HeaderRow(std::span<const char* const> a_labels, std::span<const float> a_columnX, int a_sorted, bool a_descending, const char* a_unnamedTip)
 	{
-		constexpr float kArrowRatio = 0.4f;     // the sort arrow's width, of the font size
+		constexpr float kArrowWidth = 8.0f;     // the sort arrow's width (pixels at 1080p), the same in every skin
 		constexpr float kUnsortedAlpha = 0.5f;  // of an unnamed column's arrow pair while another column sorts
 		constexpr float kPairGap = 2.0f;        // pixels at 1080p, between that pair's bases
 
@@ -3440,7 +3445,7 @@ namespace Theme
 		const auto&  style = ImGui::GetStyle();
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
 		const float  textX = origin.x + TickTextShift();
-		const float  arrow = ImGui::GetFontSize() * kArrowRatio;
+		const float  arrow = kArrowWidth * g_scale;
 		const float  lineHeight = ImGui::GetTextLineHeight();
 		auto*        draw = ImGui::GetWindowDrawList();
 		int          clicked = -1;

@@ -179,8 +179,8 @@ namespace
 		{ L"Jost-400-Book.ttf", 20.0f, L"segoeui.ttf" },
 		{ L"Jost-500-Medium.ttf", 26.0f, L"seguisb.ttf" } };
 	constexpr SkinFonts kVanillaFonts{ "Vanilla",
-		{ L"Oswald-Regular.ttf", 22.0f, L"segoeui.ttf" },
-		{ L"Oswald-SemiBold.ttf", 28.0f, L"seguisb.ttf" } };
+		{ L"Oswald-Regular.ttf", 24.0f, L"segoeui.ttf" },
+		{ L"Oswald-SemiBold.ttf", 30.0f, L"seguisb.ttf" } };
 	constexpr SkinFonts kNordicFonts{ "Nordic",
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };

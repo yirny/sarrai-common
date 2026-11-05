@@ -312,7 +312,8 @@ namespace Theme
 	};
 
 	// A part of HeadingText's run subtitle or of HeadingRunText's line. With `icon` (a square as LabelText draws it) or
-	// `rowIconKey` (an IconFile's key, sized as OutfitRow draws it) and 6px before it, the text is
+	// `rowIconKey` (an IconFile's key: in a subtitle sized and centred as `icon`, on HeadingRunText's line
+	// as OutfitRow draws it) and 6px before it, the text is
 	// a name, it and its icon in the palette's emphasis at 0.85; without either it is greyed text.
 	struct SubtitleRun
 	{

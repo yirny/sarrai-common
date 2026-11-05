@@ -2926,18 +2926,26 @@ namespace Theme
 		// How a line of runs differs between a subtitle and a heading.
 		struct RunLook
 		{
-			ImU32 plain;      // the parts that are no name
-			float iconSide;   // a line icon's square, on the back buffer
-			float iconThick;  // its lines
+			ImU32 plain;          // the parts that are no name
+			float iconSide;       // a line icon's square, on the back buffer
+			float iconThick;      // its lines
+			bool  rowIconAsLine;  // a row icon sized and centred as the line icons (a subtitle's), else as an outfit row's
 		};
 
-		// The room a part's icon takes before its text, the gap included.
+		// The room a part's icon takes before its text, the gap included; a row icon's 0 when
+		// even the default icon's PNG is missing (OutfitIconRoom).
 		float RunIconRoom(const SubtitleRun& a_run, const RunLook& a_look)
 		{
 			if (a_run.icon != HeadingIcon::kNone) {
 				return a_look.iconSide + kRowIconGap * g_scale;
 			}
-			return a_run.rowIconKey.empty() ? 0.0f : OutfitIconRoom();
+			if (a_run.rowIconKey.empty()) {
+				return 0.0f;
+			}
+			if (!a_look.rowIconAsLine) {
+				return OutfitIconRoom();
+			}
+			return OutfitIconTexture(g_defaultIconKey) ? a_look.iconSide + kRowIconGap * g_scale : 0.0f;
 		}
 
 		// The parts on one line, at the cursor; the last name's cut leaves whatever still does
@@ -2966,8 +2974,10 @@ namespace Theme
 				if (run.icon != HeadingIcon::kNone) {
 					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), a_look.iconSide, ImGui::GetColorU32(emphasis), a_look.iconThick);
 				} else if (named) {
-					const float side = OutfitIconSide();
-					DrawTintedOutfitIcon(draw, run.rowIconKey, ImVec2(x, topLeft.y + (lineHeight - side) * 0.5f), side, ImGui::GetColorU32(emphasis));
+					// Whole pixels, so the PNG stays sharp.
+					const float side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
+					const float midY = a_look.rowIconAsLine ? CapsMiddle() : lineHeight * 0.5f;
+					DrawTintedOutfitIcon(draw, run.rowIconKey, ImVec2(x, std::round(topLeft.y + midY - side * 0.5f)), side, ImGui::GetColorU32(emphasis));
 				}
 				x += RunIconRoom(run, a_look);
 
@@ -3092,7 +3102,7 @@ namespace Theme
 	void HeadingText(HeadingIcon a_icon, const char* a_text, std::span<const SubtitleRun> a_subtitle)
 	{
 		DrawHeadingLines([a_text, a_icon] { DrawHeadingLine(a_text, a_icon); }, !a_subtitle.empty(), [a_subtitle] {
-			DrawRuns(a_subtitle, { ImGui::GetColorU32(ImGuiCol_TextDisabled), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale) });  // 1px lines at 1080p
+			DrawRuns(a_subtitle, { ImGui::GetColorU32(ImGuiCol_TextDisabled), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true });  // 1px lines at 1080p
 		});
 	}
 
@@ -3100,7 +3110,7 @@ namespace Theme
 	{
 		DrawHeadingLines(
 			[a_title] {
-				DrawRuns(a_title, { ImGui::GetColorU32(ImGuiCol_Text), HeadingLineIconSide(), HeadingLineIconThick() });
+				DrawRuns(a_title, { ImGui::GetColorU32(ImGuiCol_Text), HeadingLineIconSide(), HeadingLineIconThick(), false });
 			},
 			false, [] {});
 	}

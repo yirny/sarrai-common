@@ -2217,29 +2217,66 @@ namespace
 		StrokeRect(a_draw, a_frame.Pixel(0.44f, kLidEdge - 0.04f), a_frame.Pixel(0.56f, kLidEdge + 0.12f), 0.02f * s, a_color, a_thick);
 	}
 
-	// A wardrobe: a cornice wider than the body, rising to a crest over a straight underside,
-	// above two doors with a knob each, clear of the seam between them, on two short legs.
+	// After "Wardrobe" by Magnific on Flaticon (Premium licence).
+	// A wardrobe: a cornice of two arches, the upper one running out past the body, over two
+	// doors with upright handles either side of the seam, a drawer under a shelf, on two short
+	// legs. Points are in the source's 512 square, y down.
 	void DrawWardrobeIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		constexpr float kBodyTop = 0.26f;
-		constexpr float kBodyBottom = 0.86f;
-		constexpr float kLegBottom = 0.93f;
-		constexpr float kKnobY = 0.54f;
-		constexpr float kKnobRadius = 0.03f;
+		constexpr float kSource = 512.0f;   // the source's square
+		constexpr float kScale = 0.89f;     // about the middle, to the other icons' height
+		constexpr float kArchRise = 30.0f;  // an arch's crest above its ends, in the source
+		// An arch from its left end to its right, as cubic curves (control, control, end), y from
+		// the line of its ends.
+		constexpr std::array<ImVec2, 12> kArch{ { { 123.955f, 0.0f }, { 141.645f, -3.074f }, { 158.369f, -9.434f }, { 181.498f, -18.229f },
+			{ 219.307f, -30.0f }, { 256.0f, -30.0f }, { 292.693f, -30.0f }, { 330.502f, -18.229f }, { 353.632f, -9.434f }, { 370.355f, -3.074f },
+			{ 388.045f, 0.0f }, { 405.937f, 0.0f } } };
 
-		const float s = a_frame.side;
-		a_draw->PathLineTo(a_frame.Pixel(0.18f, kBodyTop));
-		a_draw->PathLineTo(a_frame.Pixel(0.18f, 0.22f));
-		a_draw->PathBezierCubicCurveTo(a_frame.Curve(0.30f, 0.22f), a_frame.Curve(0.36f, 0.09f), a_frame.Curve(0.50f, 0.09f));
-		a_draw->PathBezierCubicCurveTo(a_frame.Curve(0.64f, 0.09f), a_frame.Curve(0.70f, 0.22f), a_frame.Pixel(0.82f, 0.22f));
-		a_draw->PathLineTo(a_frame.Pixel(0.82f, kBodyTop));
-		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
-		StrokeRect(a_draw, a_frame.Pixel(0.24f, kBodyTop), a_frame.Pixel(0.76f, kBodyBottom), 0.02f * s, a_color, a_thick);
-		StrokeLine(a_draw, a_frame.Pixel(0.50f, kBodyTop), a_frame.Pixel(0.50f, kBodyBottom), a_color, a_thick);
-		a_draw->AddCircleFilled(a_frame.Pixel(0.39f, kKnobY), kKnobRadius * s, a_color);
-		a_draw->AddCircleFilled(a_frame.Pixel(0.61f, kKnobY), kKnobRadius * s, a_color);
-		StrokeLine(a_draw, a_frame.Pixel(0.30f, kBodyBottom), a_frame.Pixel(0.30f, kLegBottom), a_color, a_thick);
-		StrokeLine(a_draw, a_frame.Pixel(0.70f, kBodyBottom), a_frame.Pixel(0.70f, kLegBottom), a_color, a_thick);
+		// Shrunk, a crest rising less than a pixel reads as a flat line (18 px at 1080p), so such
+		// a side draws the source at full size.
+		const float scale = kArchRise / kSource * kScale * a_frame.side < 1.0f ? 1.0f : kScale;
+		const auto  fraction = [&](float a_v) { return 0.5f + (a_v / kSource - 0.5f) * scale; };
+		const auto  pixel = [&](float a_x, float a_y) { return a_frame.Pixel(fraction(a_x), fraction(a_y)); };
+		const auto  curve = [&](float a_x, float a_y) { return a_frame.Curve(fraction(a_x), fraction(a_y)); };
+		const auto  line = [&](float a_x0, float a_y0, float a_x1, float a_y1) { StrokeLine(a_draw, pixel(a_x0, a_y0), pixel(a_x1, a_y1), a_color, a_thick); };
+		// ImGui's lines end square: a free end gets the source's round cap, without which a leg
+		// is lost under the body's line at small sides.
+		const auto cap = [&](float a_x, float a_y) { a_draw->AddCircleFilled(pixel(a_x, a_y), a_thick * 0.5f, a_color); };
+		const auto arch = [&](float a_y) {
+			a_draw->PathLineTo(pixel(106.063f, a_y));
+			for (std::size_t i = 0; i < kArch.size(); i += 3) {
+				const ImVec2& end = kArch[i + 2];
+				a_draw->PathBezierCubicCurveTo(curve(kArch[i].x, a_y + kArch[i].y), curve(kArch[i + 1].x, a_y + kArch[i + 1].y),
+					i + 3 == kArch.size() ? pixel(end.x, a_y + end.y) : curve(end.x, a_y + end.y));
+			}
+		};
+
+		a_draw->PathLineTo(pixel(76.0f, 45.0f));
+		arch(45.0f);
+		a_draw->PathLineTo(pixel(436.0f, 45.0f));
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		arch(105.0f);
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		for (const auto& p : { ImVec2(106.0f, 45.0f), ImVec2(106.0f, 467.0f), ImVec2(406.0f, 467.0f), ImVec2(406.0f, 45.0f) }) {
+			a_draw->PathLineTo(pixel(p.x, p.y));
+		}
+		a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		line(256.0f, 75.0f, 256.0f, 347.0f);   // the seam
+		line(106.0f, 347.0f, 406.0f, 347.0f);  // the shelf
+		line(226.0f, 407.0f, 286.0f, 407.0f);  // the drawer's handle
+		cap(226.0f, 407.0f);
+		cap(286.0f, 407.0f);
+		for (const float x : { 196.0f, 316.0f }) {
+			line(x, 195.0f, x, 256.0f);  // a door's handle
+			cap(x, 195.0f);
+			cap(x, 256.0f);
+		}
+		for (const float x : { 136.0f, 376.0f }) {
+			line(x, 467.0f, x, 497.0f);  // a leg
+			cap(x, 497.0f);
+		}
+		cap(76.0f, 45.0f);
+		cap(436.0f, 45.0f);
 	}
 
 	// What draws a Theme::HeadingIcon; nullptr for none.
@@ -2283,11 +2320,10 @@ namespace
 			return 0.515f;  // the neck's top 0.10 to the feet 0.93
 		case Theme::HeadingIcon::kBareForm:
 			return 0.525f;  // the neck's top 0.12 to the feet 0.93
-		case Theme::HeadingIcon::kWardrobe:
-			return 0.51f;  // the cornice's crest 0.09 to the legs 0.93
 		case Theme::HeadingIcon::kChest:
 			return 0.57f;  // the lid's top 0.275 to the box's bottom 0.86
 		case Theme::HeadingIcon::kStar:
+		case Theme::HeadingIcon::kWardrobe:   // the crest to the legs, the source's square about the middle
 		case Theme::HeadingIcon::kPalette:    // the board, round about the frame's middle
 		case Theme::HeadingIcon::kLightning:  // the top 0.06 to the tip 0.94
 		case Theme::HeadingIcon::kNone:

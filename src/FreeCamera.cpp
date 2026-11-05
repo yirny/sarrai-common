@@ -5,7 +5,8 @@
 //   State      - what Begin changed, kept for End
 //   Helpers    - free camera fields, the third person state, the toggle that
 //                keeps the control switches, the first / third person switch
-//                and its way back, the start at the player's eyes, the limit clamps,
+//                and its way back, the player's body shown for the free camera and
+//                hidden again, the start at the player's eyes, the limit clamps,
 //                a frame of the sideways glide and of the wheel's ease
 //   API        - Begin / Move / CentreSideways / Gliding / End
 //
@@ -57,6 +58,7 @@ namespace
 		RE::BSTSmartPointer<RE::TESCameraState> previousState;
 		FreeCameraFields                        freeFields;
 		bool                                    forcedThirdPerson = false;                   // the player was in first person
+		bool                                    shownBody = false;                           // Begin showed the player's third-person model, which first person hid
 		bool                                    forcedFirstPerson = false;                   // the camera was in third person, and Begin started from the eyes
 		bool                                    restoreOrbit = false;                        // the game was in third person, so End puts `orbit` back
 		RE::NiPoint2                            orbit;                                       // ThirdPersonState::freeRotation as Begin found it
@@ -227,6 +229,38 @@ namespace
 		}
 	}
 
+	// First person hides the player's third-person model, and the switch to third person
+	// does not show it in the same frame; the free camera, started in that frame, never
+	// shows it (seen in game: it stayed hidden). Shows it; returns whether it was hidden.
+	bool ShowPlayerBody()
+	{
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		auto* body = player ? player->Get3D(false) : nullptr;
+		if (!body || !body->GetAppCulled()) {
+			return false;
+		}
+		body->SetAppCulled(false);
+		return true;
+	}
+
+	// Hides the player's third-person model again once End is back in first person, as
+	// first person had it. The model is read again: a rebuild while the camera was on
+	// replaces it.
+	void HidePlayerBodyAgain(RE::PlayerCamera& camera, const Session& session)
+	{
+		if (!session.shownBody || !camera.IsInFirstPerson()) {
+			return;
+		}
+		auto* player = RE::PlayerCharacter::GetSingleton();
+		auto* body = player ? player->Get3D(false) : nullptr;
+		if (!body) {
+			return;
+		}
+		logger::info("Free camera off: the player's third-person model hidden again for first person (the game had {})",
+			body->GetAppCulled() ? "already hidden it" : "left it shown");
+		body->SetAppCulled(true);
+	}
+
 	// Puts the free camera at the player's eyes, looking where they look. Set
 	// here rather than left to the free camera's own start, which may not have
 	// caught up with a switch to first person made in the same frame.
@@ -377,6 +411,12 @@ namespace FreeCamera
 		if (startFromFirstPerson) {
 			StartAtEyes(*free);
 		}
+		if (session.forcedThirdPerson) {
+			session.shownBody = ShowPlayerBody();
+			if (session.shownBody) {
+				logger::info("Free camera: the player's third-person model shown (first person had hidden it)");
+			}
+		}
 		free->SetInputEventHandlingEnabled(false);  // the window drives it (Move)
 		free->zUpDown = {};
 		free->verticalDirection = 0;
@@ -501,6 +541,9 @@ namespace FreeCamera
 		auto* free = camera ? FreeState(*camera) : nullptr;
 		if (!free || camera->currentState.get() != free) {
 			logger::warn("Free camera: something else changed the camera; left as it is");
+			if (camera) {
+				HidePlayerBodyAgain(*camera, session);  // only when that left first person
+			}
 			return;
 		}
 		WriteFields(*free, session.freeFields);
@@ -509,5 +552,6 @@ namespace FreeCamera
 			camera->SetState(session.previousState.get());
 		}
 		SwitchBack(*camera, session);
+		HidePlayerBodyAgain(*camera, session);
 	}
 }

@@ -7,8 +7,9 @@
 //   Menu             - OverlayMenu: a movie-less game menu; the game shows its own
 //                      cursor over it, and its PostDisplay calls DrawFrame;
 //                      its AdvanceMovie calls Config::advance;
-//                      the HUD is hidden while it is open
-//   Input            - InputDispatchHook routes events to the window; while it is
+//                      the HUD is hidden while it is open, and the game's menus are
+//                      shown even if the console's ToggleMenus hid them
+//   Input          - InputDispatchHook routes events to the window; while it is
 //                      open the game sees no input at all
 //   Install          - checks both call sites, writes the two trampoline calls (SE/AE only),
 //                      registers the menu
@@ -182,6 +183,32 @@ namespace
 		}
 	}
 
+	// Whether the game's menus were hidden (the console's ToggleMenus) as the menu opened.
+	// Contract: touched only from OverlayMenu::ProcessMessage, as g_hud is.
+	bool g_menusHidden = false;
+
+	// Contract: while the game's menus are hidden the engine calls no PostDisplay, so the
+	// window is neither drawn nor fed input, and InputDispatchHook still gives the game
+	// nothing: the window could never close. Show them while the menu is open.
+	void ShowHiddenMenus()
+	{
+		auto* ui = RE::UI::GetSingleton();
+		if (ui && !ui->IsShowingMenus()) {
+			ui->ShowMenus(true);
+			g_menusHidden = true;
+		}
+	}
+
+	void RestoreHiddenMenus()
+	{
+		if (!std::exchange(g_menusHidden, false)) {
+			return;
+		}
+		if (auto* ui = RE::UI::GetSingleton()) {
+			ui->ShowMenus(false);
+		}
+	}
+
 	// A game menu without a movie, flagged like Tailor 3.0's own ImGui menu.
 	// While it is open the game shows its cursor (Cursor Menu, depth 13, drawn
 	// above this one) and switches controls to menu mode, so mouse events move
@@ -215,10 +242,12 @@ namespace
 			switch (*a_message.type) {
 			case RE::UI_MESSAGE_TYPE::kShow:
 				HideHud();
+				ShowHiddenMenus();
 				break;
 			case RE::UI_MESSAGE_TYPE::kHide:
 			case RE::UI_MESSAGE_TYPE::kForceHide:
 				RestoreHud();  // every way the menu closes passes here
+				RestoreHiddenMenus();
 				// The plugin marks its window closed before it hides the menu, so an
 				// open window here means the game closed the menu on its own: close the
 				// window too, or time stays frozen with nothing on screen.

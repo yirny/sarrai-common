@@ -576,7 +576,7 @@ namespace Theme
 	enum class TabIcon
 	{
 		kDress,       // a bare dress form: a padded torso on a stand
-		kWardrobe,    // a wardrobe: a crested cornice over two doors, on short legs
+		kWardrobe,    // a wardrobe: a double arched cornice over two doors and a drawer, on short legs
 		kSituations,  // the star, point down, that marks an outfit chosen for a situation (OutfitMarks)
 		kChests,      // a chest: a domed lid on a box, a clasp where they meet
 		kAppearance   // a painter's palette

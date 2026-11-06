@@ -2926,10 +2926,11 @@ namespace Theme
 		// How a line of runs differs between a subtitle and a heading.
 		struct RunLook
 		{
-			ImU32 plain;          // the parts that are no name
-			float iconSide;       // a line icon's square, on the back buffer
-			float iconThick;      // its lines
-			bool  rowIconAsLine;  // a row icon sized and centred as the line icons (a subtitle's), else as an outfit row's
+			ImU32 plain;             // the parts that are no name
+			float iconSide;          // a line icon's square, on the back buffer
+			float iconThick;         // its lines
+			bool  rowIconAsLine;     // a row icon sized and centred as the line icons (a subtitle's), else as an outfit row's
+			bool  bodyLine = false;  // RunText: from the left in Nordic too, and its whole width claimed
 		};
 
 		// The room a part's icon takes before its text, the gap included; a row icon's 0 when
@@ -2958,12 +2959,12 @@ namespace Theme
 				total += RunIconRoom(run, a_look) + ImGui::CalcTextSize(run.text).x;
 			}
 			const float avail = ImGui::GetContentRegionAvail().x;
-			if (g_skin == Skin::kNordic) {
+			if (g_skin == Skin::kNordic && !a_look.bodyLine) {
 				CentreOnLine(total);
 			}
 			const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 			const float  lineHeight = ImGui::GetTextLineHeight();
-			ImGui::Dummy(ImVec2((std::min)(total, avail), lineHeight));
+			ImGui::Dummy(ImVec2(a_look.bodyLine ? total : (std::min)(total, avail), lineHeight));
 
 			auto*        draw = ImGui::GetWindowDrawList();
 			const ImVec4 emphasis = EmphasisColor(false);
@@ -3113,6 +3114,20 @@ namespace Theme
 				DrawRuns(a_title, { ImGui::GetColorU32(ImGuiCol_Text), HeadingLineIconSide(), HeadingLineIconThick(), false });
 			},
 			false, [] {});
+	}
+
+	void PopupTitle(const char* a_text)
+	{
+		const bool ownFont = PushHeadingFont();
+		ImGui::TextUnformatted(a_text);
+		if (ownFont) {
+			ImGui::PopFont();
+		}
+	}
+
+	void RunText(std::span<const SubtitleRun> a_parts)
+	{
+		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true });  // 1px lines at 1080p
 	}
 
 	float HeadingTabsWidth(std::span<const char* const> a_labels)

@@ -2166,21 +2166,45 @@ namespace
 		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.86f), a_frame.Pixel(0.66f, 0.93f), a_color, a_thick);
 	}
 
-	// A bare dress form: a padded torso with a neck, each shoulder one arc from the neck to
-	// the underarm, on a pole with two feet.
+	// A bare dress form: a torso with a short neck, round shoulders, a narrow waist and flared
+	// hips, on a pole with two round-ended feet. Each half of the outline runs from the neck's
+	// middle down to the bottom's, the right one the left mirrored, so the halves meet on the
+	// level neck top and bottom. Those two lines end on whole pixels (Pixel) to stay crisp; the
+	// rest is exact (Curve), its corners being under a pixel at small sides.
 	void DrawDressFormIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
 	{
-		a_draw->PathLineTo(a_frame.Pixel(0.44f, 0.12f));
-		a_draw->PathLineTo(a_frame.Pixel(0.56f, 0.12f));
-		a_draw->PathLineTo(a_frame.Pixel(0.57f, 0.18f));
-		a_draw->PathBezierQuadraticCurveTo(a_frame.Curve(0.79f, 0.24f), a_frame.Pixel(0.66f, 0.42f));
-		for (const auto p : { a_frame.Pixel(0.62f, 0.52f), a_frame.Pixel(0.68f, 0.62f), a_frame.Pixel(0.66f, 0.68f), a_frame.Pixel(0.34f, 0.68f),
-				 a_frame.Pixel(0.32f, 0.62f), a_frame.Pixel(0.38f, 0.52f), a_frame.Pixel(0.34f, 0.42f) }) {
-			a_draw->PathLineTo(p);
+		constexpr float kNeckTop = 0.115f;
+		constexpr float kBottom = 0.675f;  // the torso's bottom line, where the pole starts
+
+		const auto half = [&](float a_mirror) {  // 1 draws the left half as written, -1 the right
+			const auto x = [&](float a_x) { return 0.5f + (a_x - 0.5f) * a_mirror; };
+			const auto pixel = [&](float a_x, float a_y) { return a_frame.Pixel(x(a_x), a_y); };
+			const auto exact = [&](float a_x, float a_y) { return a_frame.Curve(x(a_x), a_y); };
+			const auto to = [&](ImVec2 a_end) { a_draw->PathLineTo(a_end); };
+			const auto curve = [&](ImVec2 a_c1, ImVec2 a_c2, ImVec2 a_end) { a_draw->PathBezierCubicCurveTo(a_c1, a_c2, a_end); };
+			to(pixel(0.50f, kNeckTop));
+			to(pixel(0.464f, kNeckTop));
+			curve(exact(0.450f, kNeckTop), exact(0.438f, 0.125f), exact(0.436f, 0.139f));  // the neck's corner
+			to(exact(0.433f, 0.158f));
+			curve(exact(0.431f, 0.168f), exact(0.423f, 0.177f), exact(0.413f, 0.180f));  // the neck's base
+			curve(exact(0.349f, 0.200f), exact(0.310f, 0.229f), exact(0.297f, 0.267f));  // the shoulder
+			curve(exact(0.283f, 0.306f), exact(0.297f, 0.355f), exact(0.338f, 0.412f));  // down to the underarm
+			to(exact(0.374f, 0.499f));
+			curve(exact(0.378f, 0.509f), exact(0.377f, 0.520f), exact(0.371f, 0.530f));  // the waist
+			to(exact(0.327f, 0.604f));
+			curve(exact(0.323f, 0.611f), exact(0.322f, 0.620f), exact(0.324f, 0.627f));  // the hip
+			to(exact(0.334f, 0.656f));
+			curve(exact(0.338f, 0.667f), exact(0.348f, kBottom), pixel(0.361f, kBottom));  // the bottom's corner
+			to(pixel(0.50f, kBottom));
+			a_draw->PathStroke(a_color, ImDrawFlags_None, a_thick);
+		};
+		half(1.0f);
+		half(-1.0f);
+		DrawStandFeet(a_draw, a_frame, a_color, a_thick, kBottom);
+		// ImGui's lines end square: the feet's free ends get the drawing's round caps.
+		for (const float footX : { 0.34f, 0.66f }) {
+			a_draw->AddCircleFilled(a_frame.Pixel(footX, 0.93f), a_thick * 0.5f, a_color);
 		}
-		a_draw->PathBezierQuadraticCurveTo(a_frame.Curve(0.21f, 0.24f), a_frame.Pixel(0.43f, 0.18f));
-		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
-		DrawStandFeet(a_draw, a_frame, a_color, a_thick, 0.68f);
 	}
 
 	// A dressed form: a gown with a round collar, its waist seam and a flared skirt, the
@@ -2370,7 +2394,7 @@ namespace
 		case Theme::HeadingIcon::kDressedForm:
 			return 0.515f;  // the neck's top 0.10 to the feet 0.93
 		case Theme::HeadingIcon::kBareForm:
-			return 0.525f;  // the neck's top 0.12 to the feet 0.93
+			return 0.5225f;  // the neck's top 0.115 to the feet 0.93
 		case Theme::HeadingIcon::kChest:
 			return 0.57f;  // the lid's top 0.275 to the box's bottom 0.86
 		case Theme::HeadingIcon::kStar:

@@ -4095,7 +4095,7 @@ namespace Theme
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const ImU32 nameColor = a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text);
 		const float thick = (std::max)(1.0f, kLineWidth * g_scale);
-		DrawStarIcon(draw, IconFrame{ ImVec2(starX, midY - iconSide * 0.5f), iconSide }, nameColor, thick);
+		DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);

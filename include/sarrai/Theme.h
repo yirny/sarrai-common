@@ -495,10 +495,12 @@ namespace Theme
 	bool  IconTile(const char* id, const RowIcon& icon, bool selected);
 	float IconTileSide();
 
-	// A rectangle of colour `rgb` (0xRRGGBB), `width` by `height`, with a 1px rim in the text
-	// colour while hovered and a 2px one while `selected`. Returns true when clicked; the
-	// caller asks ImGui whether it is hovered. `id` is its ImGui ID.
-	bool ColorSwatch(const char* id, std::uint32_t rgb, bool selected, float width, float height);
+	// A rectangle of colour `rgb` (0xRRGGBB), `width` by `height` less `padding` pixels on
+	// each side, with a 1px rim in the text colour while hovered and a 2px one while
+	// `selected`. The padding is part of its button, so swatches laid edge to edge show a gap
+	// of twice the padding yet leave none for the mouse. Returns true when clicked; the caller
+	// asks ImGui whether it is hovered. `id` is its ImGui ID.
+	bool ColorSwatch(const char* id, std::uint32_t rgb, bool selected, float width, float height, float padding = 0.0f);
 
 	// A checkbox; returns true when toggled. Vanilla and Nordic draw the game's
 	// settings checkbox (ImGui's own when its texture is missing), Modern a

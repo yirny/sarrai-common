@@ -4419,14 +4419,16 @@ namespace Theme
 		return clicked;
 	}
 
-	bool ColorSwatch(const char* a_id, std::uint32_t a_rgb, bool a_selected, float a_width, float a_height)
+	bool ColorSwatch(const char* a_id, std::uint32_t a_rgb, bool a_selected, float a_width, float a_height, float a_padding)
 	{
 		constexpr float kHoverRim = 1.0f;     // pixels at 1080p
 		constexpr float kSelectedRim = 2.0f;  // pixels at 1080p
 
+		// The button takes the padding too, so the mouse is over one swatch or the next with
+		// no gap between them; the colour and its rim are drawn inside it.
 		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2((std::max)(1.0f, a_width), (std::max)(1.0f, a_height)));
-		const ImVec2 min = ImGui::GetItemRectMin();
-		const ImVec2 max = ImGui::GetItemRectMax();
+		const ImVec2 min = ImVec2(ImGui::GetItemRectMin().x + a_padding, ImGui::GetItemRectMin().y + a_padding);
+		const ImVec2 max = ImVec2(ImGui::GetItemRectMax().x - a_padding, ImGui::GetItemRectMax().y - a_padding);
 		const float  rounding = ImGui::GetStyle().FrameRounding;
 		auto*        draw = ImGui::GetWindowDrawList();
 		draw->AddRectFilled(min, max, ImGui::GetColorU32(IM_COL32((a_rgb >> 16) & 0xFF, (a_rgb >> 8) & 0xFF, a_rgb & 0xFF, 255)), rounding);

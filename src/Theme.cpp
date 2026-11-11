@@ -2950,11 +2950,12 @@ namespace Theme
 		// How a line of runs differs between a subtitle and a heading.
 		struct RunLook
 		{
-			ImU32 plain;             // the parts that are no name
-			float iconSide;          // a line icon's square, on the back buffer
-			float iconThick;         // its lines
-			bool  rowIconAsLine;     // a row icon sized and centred as the line icons (a subtitle's), else as an outfit row's
-			bool  bodyLine = false;  // RunText: from the left in Nordic too, and its whole width claimed
+			ImU32 plain;               // the parts that are no name
+			float iconSide;            // a line icon's square, on the back buffer
+			float iconThick;           // its lines
+			bool  rowIconAsLine;       // a row icon sized and centred as the line icons (a subtitle's), else as an outfit row's
+			bool  bodyLine = false;    // RunText: from the left in Nordic too, and its whole width claimed
+			bool  namesPlain = false;  // the names and their icons in `plain` too, not the emphasis (RunText's `plainNames`)
 		};
 
 		// The room a part's icon takes before its text, the gap included; a row icon's 0 when
@@ -2991,7 +2992,7 @@ namespace Theme
 			ImGui::Dummy(ImVec2(a_look.bodyLine ? total : (std::min)(total, avail), lineHeight));
 
 			auto*        draw = ImGui::GetWindowDrawList();
-			const ImVec4 emphasis = EmphasisColor(false);
+			const ImVec4 emphasis = a_look.namesPlain ? ImGui::ColorConvertU32ToFloat4(a_look.plain) : EmphasisColor(false);  // the names' colour
 			float        over = (std::max)(0.0f, total - avail);
 			float        x = topLeft.x;
 			for (const auto& run : a_runs) {
@@ -3149,9 +3150,9 @@ namespace Theme
 		}
 	}
 
-	void RunText(std::span<const SubtitleRun> a_parts)
+	void RunText(std::span<const SubtitleRun> a_parts, bool a_plainNames)
 	{
-		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true });  // 1px lines at 1080p
+		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true, a_plainNames });  // 1px lines at 1080p
 	}
 
 	float HeadingTabsWidth(std::span<const char* const> a_labels)

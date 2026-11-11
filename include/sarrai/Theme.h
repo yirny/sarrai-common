@@ -340,10 +340,11 @@ namespace Theme
 
 	// A line of body text made of `parts`, laid out as HeadingText's subtitle lays them out
 	// (names and their icons in the palette's emphasis at 0.85, icons at the subtitle's size),
-	// the parts that are no name in the text colour, from the left in every skin. It claims
-	// its whole width, so a popup that fits its content grows to it.
+	// the parts that are no name in the text colour, from the left in every skin; with
+	// `plainNames`, the names and their icons in the text colour too. It claims its whole
+	// width, so a popup that fits its content grows to it.
 	// Contract: the texts are shown as they are.
-	void RunText(std::span<const SubtitleRun> parts);
+	void RunText(std::span<const SubtitleRun> parts, bool plainNames = false);
 
 	// HeadingText with `icon` before its own line, sized as HeadingRunText's line icons, in the
 	// text colour, 6px before the text; Nordic centres the icon and the text together.

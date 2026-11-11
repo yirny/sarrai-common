@@ -4045,7 +4045,8 @@ namespace Theme
 		const float  pad = kPad * g_scale;
 		const auto   count = a_look.count >= 0 ? std::format("({})", a_look.count) : std::string{};
 		const float  iconSide = ImGui::GetTextLineHeight() - kDiceShrink * g_scale;  // the star's and the die's square
-		const float  textX = starX + iconSide + kRowIconGap * g_scale;
+		// With no icon, the name starts in its place.
+		const float textX = a_look.icon != HeadingIcon::kNone ? starX + iconSide + kRowIconGap * g_scale : starX;
 
 		PushSmallFont();
 		const ImVec2 countSize = count.empty() ? ImVec2(0.0f, 0.0f) : ImGui::CalcTextSize(count.c_str());

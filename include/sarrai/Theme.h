@@ -406,13 +406,13 @@ namespace Theme
 		bool        foldable = true;            // it has rows to fold: the chevron and its click area show
 		bool        selected = false;           // marked and filled as a selected SelectRow
 		bool        dim = false;                // the name greyed
-		HeadingIcon icon = HeadingIcon::kStar;  // the mark before the name: the situation star, or another drawing
+		HeadingIcon icon = HeadingIcon::kStar;  // the mark before the name: the situation star, another drawing, or kNone for none
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
 	// `icon`, by default the situation star (the Situations tab's), a square 4px short of the name's
 	// line height in the name's colour, its drawing centred on the name's line (HeadingIconCentre),
-	// 14px in from its left edge, level with the rows' grip dots under it
+	// 14px in from its left edge (with kNone, the name starts there), level with the rows' grip dots under it
 	// (Grip::kName), the select mark left of it; `name` 6px after the icon; its count
 	// ItemInnerSpacing.x after it in the small font, greyed, then, while foldable, a chevron, greyed and
 	// lit while hovered, then, 12px on, a list heading rule; 12px on, with `random`, a die, a square 4px

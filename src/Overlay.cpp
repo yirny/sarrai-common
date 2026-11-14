@@ -3,7 +3,8 @@
 // FILE MAP
 //   Hook targets     - Address Library IDs for D3D init and input dispatch
 //   ImGui lifecycle  - OnD3DInit creates the context on the game's device/window
-//   Frame            - DrawFrame draws the plugin's window once per frame while it is open
+//   Frame            - DrawFrame draws the plugin's window once per frame while it is open,
+//                      without the controller keys the Win32 backend reads itself
 //   Menu             - OverlayMenu: a movie-less game menu; the game shows its own
 //                      cursor over it, and its PostDisplay calls DrawFrame;
 //                      its AdvanceMovie calls Config::advance;
@@ -32,6 +33,7 @@
 #include <imgui.h>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
+#include <imgui_internal.h>  // InputEventsQueue, IsGamepadKey
 
 #include <atomic>
 #include <cstdint>
@@ -126,6 +128,23 @@ namespace
 
 	// --- Frame ----------------------------------------------------------------
 
+	// The Win32 backend also reads the controller itself (XInput) and queues its buttons as
+	// gamepad keys right after the OS cursor. ImGui holds back a cursor position queued after a
+	// key change until the next frame, so on a button change the OS cursor stood for a frame,
+	// not the game's cursor that prepareFrame's input feed queues next: the hover and the focus
+	// highlight went out, and a window being dragged jumped to it. The window takes the game's
+	// input only (InputDispatchHook), so those keys go.
+	// Contract: render thread, right after ImGui_ImplWin32_NewFrame.
+	void DropBackendGamepadKeys()
+	{
+		auto& queue = ImGui::GetCurrentContext()->InputEventsQueue;
+		for (int i = queue.Size - 1; i >= 0; --i) {
+			if (queue[i].Type == ImGuiInputEventType_Key && ImGui::IsGamepadKey(queue[i].Key.Key)) {
+				queue.erase(queue.Data + i);
+			}
+		}
+	}
+
 	// Contract: called only from OverlayMenu::PostDisplay, so only while the menu
 	// is open. No ImGui frame runs while the window is closed.
 	void DrawFrame()
@@ -136,6 +155,7 @@ namespace
 
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();  // sets io.DisplaySize; also queues the OS cursor, which prepareFrame's input feed overrides
+		DropBackendGamepadKeys();
 		g_config.prepareFrame(ImGui::GetIO().DisplaySize.y);
 		ImGui::NewFrame();
 

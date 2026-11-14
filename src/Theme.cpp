@@ -1189,6 +1189,7 @@ namespace
 			bool hovered = false;
 			bool held = false;
 			pressed = ImGui::ButtonBehavior(frame, id, &hovered, &held);
+			ImGui::RenderNavCursor(frame, id);  // the focus frame keyboard navigation draws round the other widgets
 			// LabelText's grey, white while hovered or held, as the links light; no fill.
 			const bool lit = hovered || held;
 			if (!lit) {

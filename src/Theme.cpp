@@ -39,6 +39,12 @@
 // (textures/SKYUI-CREDITS.txt). A skin whose font files are missing draws
 // with ImGui's default font; missing textures fall back to plain lines and
 // triangles, the checkbox and the scroll bar to ImGui's own.
+//
+// Keyboard navigation: ImGui leaves an InvisibleButton out of it unless it is given
+// ImGuiButtonFlags_EnableNav, so every clickable widget here passes it (all but the field
+// pen, whose field is the stop), and a list's rows are reached as the window's own items
+// (NavFlattened). A plugin turns navigation on with ImGuiConfigFlags_NavEnableKeyboard;
+// without it the flags change nothing.
 #include "PCH.h"
 
 #include "sarrai/Theme.h"
@@ -1130,7 +1136,7 @@ namespace
 		const ImVec2 size(PointedButtonWidth(a_label, a_help, a_icon), height);
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
-		const bool pressed = ImGui::InvisibleButton(a_label, size);
+		const bool pressed = ImGui::InvisibleButton(a_label, size, ImGuiButtonFlags_EnableNav);
 		const bool hovered = ImGui::IsItemHovered();
 		const bool held = ImGui::IsItemActive();
 
@@ -1352,7 +1358,7 @@ namespace
 		const float  fillRight = RowFillRight(left, right);
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
 		ListRow row{ ImVec2(left, cursor.y), ImVec2(right, bottom), ImVec2(fillLeft, cursor.y), ImVec2(fillRight, bottom), cursor.x - left, false, false };
-		row.pressed = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, right - left), a_height));
+		row.pressed = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, right - left), a_height), ImGuiButtonFlags_EnableNav);
 		row.hovered = ImGui::IsItemHovered();
 		return row;
 	}
@@ -2009,7 +2015,7 @@ namespace
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 
 		ImGui::AlignTextToFramePadding();
-		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(box.x + style.ItemInnerSpacing.x + text.x, height));
+		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(box.x + style.ItemInnerSpacing.x + text.x, height), ImGuiButtonFlags_EnableNav);
 		const bool hovered = ImGui::IsItemHovered();
 		const bool ticked = pressed ? (a_radio || !a_ticked) : a_ticked;
 
@@ -2042,7 +2048,7 @@ namespace
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		const float  height = (std::max)(side, text.y);
 
-		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(side + style.ItemInnerSpacing.x + text.x, height));
+		const bool pressed = ImGui::InvisibleButton(a_label, ImVec2(side + style.ItemInnerSpacing.x + text.x, height), ImGuiButtonFlags_EnableNav);
 		const bool hovered = ImGui::IsItemHovered();
 		const bool held = ImGui::IsItemActive();
 		const bool ticked = pressed ? !a_ticked : a_ticked;
@@ -2782,7 +2788,7 @@ namespace
 	bool LinkButton(const char* a_label, ImVec2 a_size, bool* a_hovered = nullptr)
 	{
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, a_size.x), (std::max)(1.0f, a_size.y)));
+		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, a_size.x), (std::max)(1.0f, a_size.y)), ImGuiButtonFlags_EnableNav);
 		const bool   hovered = ImGui::IsItemHovered();
 		ImGui::GetWindowDrawList()->AddText(topLeft, LinkColor(hovered), a_label);
 		if (a_hovered) {
@@ -3295,7 +3301,7 @@ namespace Theme
 		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		PushLabelSpacing();  // the line's gap below stays LabelText's
-		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)));
+		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)), ImGuiButtonFlags_EnableNav);
 		ImGui::PopStyleVar();
 
 		const bool  hovered = ImGui::IsItemHovered();
@@ -3513,7 +3519,7 @@ namespace Theme
 				ImGui::SameLine();
 			}
 			ImGui::SetCursorScreenPos(unnamed ? ImVec2(textX + a_columnX[i] - area.x * 0.5f, origin.y + (lineHeight - area.y) * 0.5f) : ImVec2(textX + a_columnX[i], origin.y));
-			if (ImGui::InvisibleButton(a_labels[i], ImVec2((std::max)(1.0f, area.x), (std::max)(1.0f, area.y)))) {
+			if (ImGui::InvisibleButton(a_labels[i], ImVec2((std::max)(1.0f, area.x), (std::max)(1.0f, area.y)), ImGuiButtonFlags_EnableNav)) {
 				clicked = static_cast<int>(i);
 			}
 			const bool   hovered = ImGui::IsItemHovered();
@@ -3589,7 +3595,7 @@ namespace Theme
 
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)));
+		const bool   clicked = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, text.x), (std::max)(1.0f, text.y)), ImGuiButtonFlags_EnableNav);
 		const float  alpha = a_selected || ImGui::IsItemHovered() ? 1.0f : kUnselectedAlpha;
 		ImGui::GetWindowDrawList()->AddText(topLeft, ImGui::GetColorU32(ImGuiCol_Text, alpha), a_label);
 		return clicked;
@@ -3603,7 +3609,7 @@ namespace Theme
 
 		const float  side = kTabSide * g_scale;
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_name, ImVec2(side, side));
+		const bool   clicked = ImGui::InvisibleButton(a_name, ImVec2(side, side), ImGuiButtonFlags_EnableNav);
 		const bool   hovered = ImGui::IsItemHovered();
 		auto*        draw = ImGui::GetWindowDrawList();
 		ImU32        color = LinkColor(hovered);
@@ -3834,7 +3840,7 @@ namespace Theme
 		constexpr float kLineWidth = 1.0f;    // pixels at 1080p, as the field icons'
 
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(a_side, a_side));
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(a_side, a_side), ImGuiButtonFlags_EnableNav);
 		const ImU32  color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled);
 		const float  half = ImGui::GetFontSize() * kCrossRatio;
 		const float  thickness = (std::max)(1.0f, kLineWidth * g_scale);
@@ -3937,7 +3943,7 @@ namespace Theme
 		ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
 		g_listFadeId = ImGui::GetID(a_id);
 		const int  colors = PushScrollbarColors(g_listFadeId);
-		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, a_height), ImGuiChildFlags_AlwaysUseWindowPadding);
+		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, a_height), ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_NavFlattened);
 		ImGui::PopStyleColor(colors);
 		ImGui::PopStyleVar(2);
 		if (visible && left > 0.0f) {
@@ -4067,24 +4073,24 @@ namespace Theme
 		const float foldLeft = a_look.foldable ? chevronX - pad : diceAreaLeft;
 
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
-		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height));
+		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height), ImGuiButtonFlags_EnableNav);
 		const bool selectHovered = ImGui::IsItemHovered();
 		bool       fold = false;
 		bool       foldHovered = false;
 		if (a_look.foldable) {
 			ImGui::SameLine(0.0f, 0.0f);
-			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, diceAreaLeft - foldLeft), height));
+			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, diceAreaLeft - foldLeft), height), ImGuiButtonFlags_EnableNav);
 			foldHovered = ImGui::IsItemHovered();
 		}
 		bool dice = false;
 		bool diceHovered = false;
 		if (a_look.random) {
 			ImGui::SameLine(0.0f, 0.0f);
-			dice = ImGui::InvisibleButton("##dice", ImVec2((std::max)(1.0f, editLeft - diceAreaLeft), height)) && a_look.diceButton;
+			dice = ImGui::InvisibleButton("##dice", ImVec2((std::max)(1.0f, editLeft - diceAreaLeft), height), ImGuiButtonFlags_EnableNav) && a_look.diceButton;
 			diceHovered = ImGui::IsItemHovered();
 		}
 		ImGui::SameLine(0.0f, 0.0f);
-		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height));
+		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height), ImGuiButtonFlags_EnableNav);
 		const bool editHovered = ImGui::IsItemHovered();
 
 		auto* draw = ImGui::GetWindowDrawList();
@@ -4146,7 +4152,7 @@ namespace Theme
 		const float  halfGap = ListRowGap(style.ItemInnerSpacing.y) * 0.5f;
 		const ImVec2 size(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + halfGap * 2.0f);
 		const ImVec2 hitTopLeft = ImGui::GetCursorScreenPos();
-		const bool   clicked = ImGui::InvisibleButton(a_label, size);
+		const bool   clicked = ImGui::InvisibleButton(a_label, size, ImGuiButtonFlags_EnableNav);
 		const bool   hovered = ImGui::IsItemHovered();
 		if (clicked) {
 			*a_ticked = !*a_ticked;  // drawn as it is after the click
@@ -4389,7 +4395,7 @@ namespace Theme
 		const ImVec2 size(IconFieldWidth(), FieldHeight({}));
 		bool         clicked = false;
 		if (a_interactive) {
-			clicked = ImGui::InvisibleButton(a_id, size);
+			clicked = ImGui::InvisibleButton(a_id, size, ImGuiButtonFlags_EnableNav);
 		} else {
 			ImGui::Dummy(size);
 		}
@@ -4412,7 +4418,7 @@ namespace Theme
 	bool IconTile(const char* a_id, const RowIcon& a_icon, bool a_selected)
 	{
 		const float  side = IconTileSide();
-		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(side, side));
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(side, side), ImGuiButtonFlags_EnableNav);
 		const ImVec2 min = ImGui::GetItemRectMin();
 		auto*        draw = ImGui::GetWindowDrawList();
 		DrawTileFills(draw, min, ImGui::GetItemRectMax(), a_selected, ImGui::IsItemHovered());
@@ -4428,7 +4434,7 @@ namespace Theme
 
 		// The button takes the padding too, so the mouse is over one swatch or the next with
 		// no gap between them; the colour and its rim are drawn inside it.
-		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2((std::max)(1.0f, a_width), (std::max)(1.0f, a_height)));
+		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2((std::max)(1.0f, a_width), (std::max)(1.0f, a_height)), ImGuiButtonFlags_EnableNav);
 		const ImVec2 min = ImVec2(ImGui::GetItemRectMin().x + a_padding, ImGui::GetItemRectMin().y + a_padding);
 		const ImVec2 max = ImVec2(ImGui::GetItemRectMax().x - a_padding, ImGui::GetItemRectMax().y - a_padding);
 		const float  rounding = ImGui::GetStyle().FrameRounding;

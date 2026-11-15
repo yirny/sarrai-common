@@ -67,6 +67,20 @@ namespace Theme
 	// height in pixels.
 	void Apply(Skin skin, const Palette& palette, float displayHeight);
 
+	// The words the widgets below write themselves, English until SetTexts: an outfit row's
+	// form mark tooltip (OutfitMarks) and SituationHeading's Edit.
+	struct Texts
+	{
+		const char* currentOutfit = "Current Outfit";
+		const char* defaultOutfit = "Default Outfit";
+		const char* edit = "Edit";
+	};
+
+	// Contract: call once, before the first frame that draws those widgets (a plugin's
+	// kDataLoaded, with its texts in the player's language); the texts must stay for the
+	// whole game.
+	void SetTexts(const Texts& texts);
+
 	// The widgets below draw in the active skin, between Apply and Render; each one's comment
 	// says what a skin draws in place of ImGui's own.
 

@@ -240,6 +240,11 @@ namespace
 	LoadedFonts g_modernFonts;
 	LoadedFonts g_vanillaFonts;
 	LoadedFonts g_nordicFonts;
+	// Set once by SetTexts before the first frame that reads them, so the render thread reads
+	// them unchanged.
+	Theme::Texts g_texts;
+	std::string  g_currentAndDefault = "Current Outfit\nDefault Outfit";  // the form mark tooltip of both
+
 	Theme::Skin g_skin = Theme::Skin::kModern;  // skin of the frame being built
 	float       g_scale = 1.0f;                 // its resolution scale, for hand-drawn ornaments
 	float       g_itemSpacingY = 0.0f;          // its item spacing on the back buffer, before any push
@@ -2608,9 +2613,9 @@ namespace
 	const char* FormMarkTooltip(const Theme::OutfitMarks& a_marks)
 	{
 		if (!a_marks.current) {
-			return "Default Outfit";
+			return g_texts.defaultOutfit;
 		}
-		return a_marks.defaultOutfit ? "Current Outfit\nDefault Outfit" : "Current Outfit";
+		return a_marks.defaultOutfit ? g_currentAndDefault.c_str() : g_texts.currentOutfit;
 	}
 
 	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
@@ -2891,6 +2896,12 @@ namespace Theme
 		if (SUCCEEDED(init)) {
 			::CoUninitialize();
 		}
+	}
+
+	void SetTexts(const Texts& a_texts)
+	{
+		g_texts = a_texts;
+		g_currentAndDefault = std::string(a_texts.currentOutfit) + "\n" + a_texts.defaultOutfit;
 	}
 
 	void Apply(Skin a_skin, const Palette& a_palette, float a_displayHeight)
@@ -4034,11 +4045,11 @@ namespace Theme
 	// name's fills and mark are a selected SelectRow's.
 	HeadingClick SituationHeading(const char* a_name, const SituationHeadingLook& a_look)
 	{
-		constexpr const char* kEdit = "Edit";
-		constexpr float       kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
-		constexpr float       kPad = 4.0f;           // pixels at 1080p, around the chevron, the die and Edit
-		constexpr float       kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
-		constexpr float       kLineWidth = 1.0f;     // pixels at 1080p, the star's, the die's and the chevron's
+		const char*     editText = g_texts.edit;
+		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
+		constexpr float kPad = 4.0f;           // pixels at 1080p, around the chevron, the die and Edit
+		constexpr float kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
+		constexpr float kLineWidth = 1.0f;     // pixels at 1080p, the star's, the die's and the chevron's
 
 		const float  gap = ListPaddingY();  // the row gap the list leaves out, half above and half below
 		const float  height = SituationHeadingHeight();
@@ -4058,7 +4069,7 @@ namespace Theme
 
 		PushSmallFont();
 		const ImVec2 countSize = count.empty() ? ImVec2(0.0f, 0.0f) : ImGui::CalcTextSize(count.c_str());
-		const ImVec2 editSize = ImGui::CalcTextSize(kEdit);
+		const ImVec2 editSize = ImGui::CalcTextSize(editText);
 		const float  side = ImGui::GetFontSize() * kChevronRatio;
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
@@ -4122,7 +4133,7 @@ namespace Theme
 			const ImVec2 points[] = { { chevronX + side * 0.25f, midY - side * 0.5f }, { chevronX + side * 0.75f, midY }, { chevronX + side * 0.25f, midY + side * 0.5f } };
 			draw->AddPolyline(points, 3, chevron, ImDrawFlags_None, thick);
 		}
-		draw->AddText(ImVec2(editX, midY - editSize.y * 0.5f), editHovered ? LinkColor(true) : grey, kEdit);
+		draw->AddText(ImVec2(editX, midY - editSize.y * 0.5f), editHovered ? LinkColor(true) : grey, editText);
 		PopSmallFont();
 		const float ruleLeft = (a_look.foldable ? chevronX + side : textRight) + kTextRuleGap * g_scale;
 		const float ruleEnd = a_look.random ? diceLeft + diceSide * kDiceInset : editX;  // the die's outline, or Edit's text

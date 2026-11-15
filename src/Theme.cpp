@@ -2506,6 +2506,17 @@ namespace
 		}
 	}
 
+	// A warning: a circle with an exclamation mark in it, a stroke from above the middle and a dot
+	// below it, on the centre column (IconFrame::Pixel), so it stays crisp.
+	void DrawWarningIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const ImVec2 centre = a_frame.Pixel(0.50f, 0.50f);
+		a_draw->PathArcTo(centre, a_frame.side * 0.5f - a_thick * 0.5f, 0.0f, 2.0f * IM_PI);
+		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.24f), a_frame.Pixel(0.50f, 0.58f), a_color, a_thick);
+		a_draw->AddCircleFilled(a_frame.Pixel(0.50f, 0.75f), (std::max)(1.0f, 0.06f * a_frame.side), a_color);
+	}
+
 	// The radius of a drag grip's dots on the back buffer.
 	float GripDotRadius()
 	{
@@ -4074,7 +4085,9 @@ namespace Theme
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
 		const float countX = nameRight + ImGui::GetStyle().ItemInnerSpacing.x;
-		const float textRight = count.empty() ? nameRight : countX + countSize.x;
+		const float countRight = count.empty() ? nameRight : countX + countSize.x;
+		const float warningX = countRight + ImGui::GetStyle().ItemInnerSpacing.x;
+		const float textRight = a_look.warning ? warningX + iconSide : countRight;
 		const float chevronX = textRight + pad * 2.0f;
 		const float editX = fillMax.x - SituationNameInset() - editSize.x;  // as far in from the right end as the name from the left
 		const float editLeft = editX - pad;
@@ -4085,6 +4098,9 @@ namespace Theme
 		const float foldLeft = a_look.foldable ? chevronX - pad : diceAreaLeft;
 
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
+		if (a_look.grip) {
+			ImGui::SetNextItemAllowOverlap();  // the grip, submitted last, takes its left end
+		}
 		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height), ImGuiButtonFlags_EnableNav);
 		const bool selectHovered = ImGui::IsItemHovered();
 		bool       fold = false;
@@ -4104,9 +4120,19 @@ namespace Theme
 		ImGui::SameLine(0.0f, 0.0f);
 		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height), ImGuiButtonFlags_EnableNav);
 		const bool editHovered = ImGui::IsItemHovered();
+		// Contract: the last item, so the caller can open the heading's drag on it.
+		bool gripClicked = false;
+		bool gripHovered = false;
+		bool gripHeld = false;
+		if (a_look.grip) {
+			ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
+			gripClicked = ImGui::InvisibleButton("##grip", ImVec2((std::max)(1.0f, textX - left), height)) && !ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left);
+			gripHovered = ImGui::IsItemHovered();
+			gripHeld = ImGui::IsItemActive();
+		}
 
 		auto* draw = ImGui::GetWindowDrawList();
-		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered, 0.0f);
+		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered || gripHovered, 0.0f);
 		if (a_look.selected) {
 			const ListRow nameLine{ ImVec2(left, cursor.y + gap * 0.5f), ImVec2(right, cursor.y + gap * 0.5f + SelectRowHeight()), fillMin, fillMax,
 				starX - left, false, false };
@@ -4115,8 +4141,20 @@ namespace Theme
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const ImU32 nameColor = a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text);
 		const float thick = (std::max)(1.0f, kLineWidth * g_scale);
-		DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
+		const bool  rowHovered = selectHovered || foldHovered || diceHovered || editHovered || gripHovered;
+		if (a_look.grip && (rowHovered || gripHeld)) {
+			const float gripWidth = kGripDotStep * g_scale + GripDotRadius() * 2.0f;
+			DrawGrip(draw, fillMin.x + (iconSide - gripWidth) * 0.5f, midY, Grip::kName);  // centred where the icon is
+		} else {
+			DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
+		}
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
+		bool warningHovered = false;
+		if (a_look.warning) {
+			const IconFrame frame{ ImVec2(warningX, midY - iconSide * 0.5f), iconSide };
+			DrawWarningIcon(draw, frame, ErrorColor(), thick);
+			warningHovered = (selectHovered || gripHovered) && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+		}
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);
 		}
@@ -4140,6 +4178,8 @@ namespace Theme
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
+		} else if (warningHovered) {
+			Tooltip(a_look.warning);
 		}
 		if (dice) {
 			return HeadingClick::kDice;
@@ -4150,7 +4190,7 @@ namespace Theme
 		if (fold) {
 			return HeadingClick::kFold;
 		}
-		return select ? HeadingClick::kSelect : HeadingClick::kNone;
+		return select || gripClicked ? HeadingClick::kSelect : HeadingClick::kNone;
 	}
 
 	// Nordic's arrow column, then the checkbox at the row's start (Vanilla and Nordic, the

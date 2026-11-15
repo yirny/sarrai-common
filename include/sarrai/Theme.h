@@ -422,6 +422,14 @@ namespace Theme
 		bool        selected = false;           // marked and filled as a selected SelectRow
 		bool        dim = false;                // the name greyed
 		HeadingIcon icon = HeadingIcon::kStar;  // the mark before the name: the situation star, another drawing, or kNone for none
+		// The heading can be dragged by its grip: from its left edge to its name, where, while the
+		// heading is hovered or the grip held, a grip's dots (Grip::kName's) take `icon`'s place.
+		// A click there without a drag selects, as left of the chevron does.
+		bool grip = false;
+		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
+		// mark, a square 4px short of the name's line height; this text is its tooltip while it is
+		// hovered. null for none.
+		const char* warning = nullptr;
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
@@ -433,8 +441,11 @@ namespace Theme
 	// lit while hovered, then, 12px on, a list heading rule; 12px on, with `random`, a die, a square 4px
 	// short of the name's line height, greyed and lit while hovered as a button, its square ending 8px
 	// short of `Edit`; and `Edit` at the list's right end, in the small font, greyed and lit while
-	// hovered. A hovered one left of the chevron gets the row's hover fill.
-	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading.
+	// hovered. A hovered one left of the chevron gets the row's hover fill. With `grip` and
+	// `warning`, as SituationHeadingLook says.
+	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading. With
+	// `grip` the last item it submits is the grip, so the caller opens the heading's drag right
+	// after it (ImGui::BeginDragDropSource).
 	HeadingClick SituationHeading(const char* name, const SituationHeadingLook& look);
 	float        SituationHeadingHeight();
 

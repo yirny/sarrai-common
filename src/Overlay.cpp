@@ -240,9 +240,9 @@ namespace
 		bool logged = false;
 	} g_cursorWatch;
 
-	// The game shows its Cursor Menu as this menu opens, but the Cursor Menu can close again while
-	// this menu is still open (seen right after launching the game: the cursor showed, then went
-	// within a second; what closes it is not known yet); the cursor is then gone and the mouse
+	// The game shows its Cursor Menu as this menu opens, but closes it again as the Fader Menu
+	// closes, though this menu is still open (seen when opened right after a save loaded: the
+	// cursor showed, then went about a second later); the cursor is then gone and the mouse
 	// moves it no more. Show it again. A show is
 	// sent only after the Cursor Menu was open once, so the game's own show at open is not
 	// doubled, and only once until it is open again.

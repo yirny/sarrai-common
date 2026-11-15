@@ -9,7 +9,8 @@
 //                      cursor over it, and its PostDisplay calls DrawFrame;
 //                      its AdvanceMovie calls Config::advance;
 //                      the HUD is hidden while it is open, and the game's menus are
-//                      shown even if the console's ToggleMenus hid them
+//                      shown even if the console's ToggleMenus hid them; a Cursor Menu
+//                      closed while it is open is shown again (KeepCursorMenu)
 //   Input          - InputDispatchHook routes events to the window; while it is
 //                      open the game sees no input at all
 //   Install          - checks both call sites, writes the two trampoline calls (SE/AE only),
@@ -229,6 +230,48 @@ namespace
 		}
 	}
 
+	// The Cursor Menu as this menu sees it since its show: it was open once, a show of it is
+	// queued, and the reshow was logged.
+	// Contract: touched only from OverlayMenu (game thread), as g_hud is.
+	struct CursorWatch
+	{
+		bool seen = false;
+		bool showQueued = false;
+		bool logged = false;
+	} g_cursorWatch;
+
+	// The game shows its Cursor Menu as this menu opens, but the Cursor Menu can close again while
+	// this menu is still open (seen right after launching the game: the cursor showed, then went
+	// within a second; what closes it is not known yet); the cursor is then gone and the mouse
+	// moves it no more. Show it again. A show is
+	// sent only after the Cursor Menu was open once, so the game's own show at open is not
+	// doubled, and only once until it is open again.
+	// Contract: game thread, from OverlayMenu::AdvanceMovie, so only while this menu is open.
+	void KeepCursorMenu()
+	{
+		auto* ui = RE::UI::GetSingleton();
+		if (!ui) {
+			return;
+		}
+		if (ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
+			g_cursorWatch.seen = true;
+			g_cursorWatch.showQueued = false;
+			return;
+		}
+		if (!g_cursorWatch.seen || g_cursorWatch.showQueued) {
+			return;
+		}
+		auto* queue = RE::UIMessageQueue::GetSingleton();
+		if (!queue) {
+			return;
+		}
+		queue->AddMessage(RE::CursorMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+		g_cursorWatch.showQueued = true;
+		if (!std::exchange(g_cursorWatch.logged, true)) {
+			logger::info("The Cursor Menu closed while {} was open; shown again", g_config.menuName);
+		}
+	}
+
 	// A game menu without a movie, flagged like Tailor 3.0's own ImGui menu.
 	// While it is open the game shows its cursor (Cursor Menu, depth 13, drawn
 	// above this one) and switches controls to menu mode, so mouse events move
@@ -253,6 +296,7 @@ namespace
 		// thread; Tailor 3.0 holds its preview target from CursorMenu's AdvanceMovie.
 		void AdvanceMovie(float a_interval, std::uint32_t a_currentTime) override
 		{
+			KeepCursorMenu();
 			g_config.advance();
 			RE::IMenu::AdvanceMovie(a_interval, a_currentTime);
 		}
@@ -263,6 +307,7 @@ namespace
 			case RE::UI_MESSAGE_TYPE::kShow:
 				HideHud();
 				ShowHiddenMenus();
+				g_cursorWatch = {};
 				break;
 			case RE::UI_MESSAGE_TYPE::kHide:
 			case RE::UI_MESSAGE_TYPE::kForceHide:

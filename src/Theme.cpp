@@ -126,6 +126,9 @@ namespace
 	constexpr float kOutfitMarkGap = 6.0f;
 	// The dice mark's left and right corners, in from its square's sides (of the side).
 	constexpr float kDiceInset = 0.14f;
+	// A situation heading's star and die: their square, short of the name's line height (pixels
+	// at 1080p).
+	constexpr float kHeadingIconShrink = 4.0f;
 	// From the left edge of the Situation List's line for the Default's items to its text
 	// (Grip::kLine), in every skin (pixels at 1080p).
 	constexpr float kOutfitRowPadX = 22.0f;
@@ -138,6 +141,9 @@ namespace
 	constexpr float kGripTextGap = 12.0f;
 	// Room between a list heading's text (or chevron) and the rule after it (pixels at 1080p).
 	constexpr float kTextRuleGap = 12.0f;
+	// A dragged row's or heading's see-through copy (OutfitDragGhost, SituationDragGhost): its
+	// alpha, on top of the style's.
+	constexpr float kGhostAlpha = 0.7f;
 	// From a list heading's rule to the list's right end (pixels at 1080p).
 	constexpr float kRuleEndPad = 4.0f;
 	// A list's or dropdown's scroll bar shows on a wheel turn, the mouse over the bar or a drag
@@ -2506,17 +2512,6 @@ namespace
 		}
 	}
 
-	// A warning: a circle with an exclamation mark in it, a stroke from above the middle and a dot
-	// below it, on the centre column (IconFrame::Pixel), so it stays crisp.
-	void DrawWarningIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
-	{
-		const ImVec2 centre = a_frame.Pixel(0.50f, 0.50f);
-		a_draw->PathArcTo(centre, a_frame.side * 0.5f - a_thick * 0.5f, 0.0f, 2.0f * IM_PI);
-		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
-		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.24f), a_frame.Pixel(0.50f, 0.58f), a_color, a_thick);
-		a_draw->AddCircleFilled(a_frame.Pixel(0.50f, 0.75f), (std::max)(1.0f, 0.06f * a_frame.side), a_color);
-	}
-
 	// The radius of a drag grip's dots on the back buffer.
 	float GripDotRadius()
 	{
@@ -4059,7 +4054,6 @@ namespace Theme
 		const char*     editText = g_texts.edit;
 		constexpr float kChevronRatio = 0.5f;  // the chevron's box, of the small font's size
 		constexpr float kPad = 4.0f;           // pixels at 1080p, around the chevron, the die and Edit
-		constexpr float kDiceShrink = 4.0f;    // pixels at 1080p, the die's square short of the name's line height
 		constexpr float kLineWidth = 1.0f;     // pixels at 1080p, the star's, the die's and the chevron's
 
 		const float  gap = ListPaddingY();  // the row gap the list leaves out, half above and half below
@@ -4074,7 +4068,7 @@ namespace Theme
 		const float  midY = textY + ImGui::GetTextLineHeight() * 0.5f;
 		const float  pad = kPad * g_scale;
 		const auto   count = a_look.count >= 0 ? std::format("({})", a_look.count) : std::string{};
-		const float  iconSide = ImGui::GetTextLineHeight() - kDiceShrink * g_scale;  // the star's and the die's square
+		const float  iconSide = ImGui::GetTextLineHeight() - kHeadingIconShrink * g_scale;  // the star's and the die's square
 		// With no icon, the name starts in its place.
 		const float textX = a_look.icon != HeadingIcon::kNone ? starX + iconSide + kRowIconGap * g_scale : starX;
 
@@ -4085,9 +4079,7 @@ namespace Theme
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
 		const float countX = nameRight + ImGui::GetStyle().ItemInnerSpacing.x;
-		const float countRight = count.empty() ? nameRight : countX + countSize.x;
-		const float warningX = countRight + ImGui::GetStyle().ItemInnerSpacing.x;
-		const float textRight = a_look.warning ? warningX + iconSide : countRight;
+		const float textRight = count.empty() ? nameRight : countX + countSize.x;
 		const float chevronX = textRight + pad * 2.0f;
 		const float editX = fillMax.x - SituationNameInset() - editSize.x;  // as far in from the right end as the name from the left
 		const float editLeft = editX - pad;
@@ -4097,64 +4089,66 @@ namespace Theme
 		const float diceAreaLeft = a_look.random ? diceLeft - pad : editLeft;  // with no die, Edit's area's
 		const float foldLeft = a_look.foldable ? chevronX - pad : diceAreaLeft;
 
+		// The part of the heading held now, if any: its ID and rect, for the caller's drag.
+		ImGuiID    held = 0;
+		ImRect     heldRect;
+		const auto part = [&held, &heldRect](const char* a_id, float a_width, float a_height) {
+			const bool clicked = ImGui::InvisibleButton(a_id, ImVec2((std::max)(1.0f, a_width), a_height), ImGuiButtonFlags_EnableNav);
+			if (ImGui::IsItemActive()) {
+				held = ImGui::GetItemID();
+				heldRect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+			}
+			return clicked;
+		};
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
-		if (a_look.grip) {
-			ImGui::SetNextItemAllowOverlap();  // the grip, submitted last, takes its left end
-		}
-		const bool select = ImGui::InvisibleButton("##select", ImVec2((std::max)(1.0f, foldLeft - left), height), ImGuiButtonFlags_EnableNav);
+		bool       select = part("##select", foldLeft - left, height);
 		const bool selectHovered = ImGui::IsItemHovered();
 		bool       fold = false;
 		bool       foldHovered = false;
 		if (a_look.foldable) {
 			ImGui::SameLine(0.0f, 0.0f);
-			fold = ImGui::InvisibleButton("##fold", ImVec2((std::max)(1.0f, diceAreaLeft - foldLeft), height), ImGuiButtonFlags_EnableNav);
+			fold = part("##fold", diceAreaLeft - foldLeft, height);
 			foldHovered = ImGui::IsItemHovered();
 		}
 		bool dice = false;
 		bool diceHovered = false;
 		if (a_look.random) {
 			ImGui::SameLine(0.0f, 0.0f);
-			dice = ImGui::InvisibleButton("##dice", ImVec2((std::max)(1.0f, editLeft - diceAreaLeft), height), ImGuiButtonFlags_EnableNav) && a_look.diceButton;
+			dice = part("##dice", editLeft - diceAreaLeft, height) && a_look.diceButton;
 			diceHovered = ImGui::IsItemHovered();
 		}
 		ImGui::SameLine(0.0f, 0.0f);
-		const bool edit = ImGui::InvisibleButton("##edit", ImVec2((std::max)(1.0f, right - editLeft), height), ImGuiButtonFlags_EnableNav);
+		bool       edit = part("##edit", right - editLeft, height);
 		const bool editHovered = ImGui::IsItemHovered();
-		// Contract: the last item, so the caller can open the heading's drag on it.
-		bool gripClicked = false;
-		bool gripHovered = false;
-		bool gripHeld = false;
 		if (a_look.grip) {
-			ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
-			gripClicked = ImGui::InvisibleButton("##grip", ImVec2((std::max)(1.0f, textX - left), height)) && !ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left);
-			gripHovered = ImGui::IsItemHovered();
-			gripHeld = ImGui::IsItemActive();
+			// A click that became a drag is the drag's alone.
+			if (ImGui::IsMouseDragPastThreshold(ImGuiMouseButton_Left)) {
+				select = fold = dice = edit = false;
+			}
+			// Contract: the part held is the last item, so the caller's BeginDragDropSource opens
+			// the heading's drag on it, wherever it was grabbed.
+			if (held != 0) {
+				ImGui::SetLastItemData(held, ImGuiItemFlags_None, ImGuiItemStatusFlags_None, heldRect);
+			}
 		}
 
 		auto* draw = ImGui::GetWindowDrawList();
-		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered || gripHovered, 0.0f);
+		DrawRowFills(draw, fillMin, fillMax, a_look.selected, selectHovered, 0.0f);
 		if (a_look.selected) {
 			const ListRow nameLine{ ImVec2(left, cursor.y + gap * 0.5f), ImVec2(right, cursor.y + gap * 0.5f + SelectRowHeight()), fillMin, fillMax,
 				starX - left, false, false };
 			DrawSelectMark(draw, nameLine, starX);
 		}
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const ImU32 nameColor = a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text);
+		const ImU32 nameColor = a_look.alert ? ErrorColor() : a_look.dim ? grey :
+		                                                                   ImGui::GetColorU32(ImGuiCol_Text);
 		const float thick = (std::max)(1.0f, kLineWidth * g_scale);
-		const bool  rowHovered = selectHovered || foldHovered || diceHovered || editHovered || gripHovered;
-		if (a_look.grip && (rowHovered || gripHeld)) {
-			const float gripWidth = kGripDotStep * g_scale + GripDotRadius() * 2.0f;
-			DrawGrip(draw, fillMin.x + (iconSide - gripWidth) * 0.5f, midY, Grip::kName);  // centred where the icon is
+		if (a_look.grip && (selectHovered || foldHovered || diceHovered || editHovered || held != 0)) {
+			DrawGrip(draw, fillMin.x, midY, Grip::kName);  // where the rows' dots under it are
 		} else {
 			DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
 		}
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
-		bool warningHovered = false;
-		if (a_look.warning) {
-			const IconFrame frame{ ImVec2(warningX, midY - iconSide * 0.5f), iconSide };
-			DrawWarningIcon(draw, frame, ErrorColor(), thick);
-			warningHovered = (selectHovered || gripHovered) && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
-		}
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);
 		}
@@ -4178,8 +4172,6 @@ namespace Theme
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
-		} else if (warningHovered) {
-			Tooltip(a_look.warning);
 		}
 		if (dice) {
 			return HeadingClick::kDice;
@@ -4190,7 +4182,40 @@ namespace Theme
 		if (fold) {
 			return HeadingClick::kFold;
 		}
-		return select || gripClicked ? HeadingClick::kSelect : HeadingClick::kNone;
+		return select ? HeadingClick::kSelect : HeadingClick::kNone;
+	}
+
+	void SituationDragGhost(const char* a_name)
+	{
+		const ImVec2 itemMin = ImGui::GetItemRectMin();  // the part of the heading held (SituationHeading)
+		const ImVec2 mouse = ImGui::GetMousePos();
+		const ImVec2 grab = ImGui::GetCurrentContext()->ActiveIdClickOffset;  // from that part's top-left
+		const float  shiftX = mouse.x - grab.x - itemMin.x;                   // from the heading to its copy
+		const float  shiftY = mouse.y - grab.y - itemMin.y;
+		const float  left = ImGui::GetWindowPos().x;
+		const float  right = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+		const ImVec2 ghostMin(left + g_listReach.x + shiftX, itemMin.y + shiftY);
+		const ImVec2 ghostMax(RowFillRight(left, right) + shiftX, itemMin.y + SituationHeadingHeight() + shiftY);
+		const float  textY = ghostMin.y + ListPaddingY() * 0.5f + kSelectRowPadY * g_scale;
+		const float  midY = textY + ImGui::GetTextLineHeight() * 0.5f;
+		const float  iconSide = ImGui::GetTextLineHeight() - kHeadingIconShrink * g_scale;  // as SituationHeading's
+		const float  textX = ghostMin.x + SituationNameInset() + iconSide + kRowIconGap * g_scale;
+		const auto&  style = ImGui::GetStyle();
+		auto*        draw = ImGui::GetForegroundDrawList();
+		ImGui::PushStyleVar(ImGuiStyleVar_Alpha, style.Alpha * kGhostAlpha);
+		draw->AddRectFilled(ghostMin, ghostMax, ImGui::GetColorU32(ImGuiCol_PopupBg), style.PopupRounding);
+		if (style.PopupBorderSize > 0.0f) {
+			draw->AddRect(ghostMin, ghostMax, ImGui::GetColorU32(ImGuiCol_Border), style.PopupRounding, 0, style.PopupBorderSize);
+		}
+		DrawGrip(draw, ghostMin.x, midY, Grip::kName);
+		const float  nameRight = ghostMax.x - style.FramePadding.x;
+		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
+		if (textX + nameSize.x <= nameRight) {
+			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
+		} else if (nameRight > textX) {
+			ImGui::RenderTextEllipsis(draw, ImVec2(textX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
+		}
+		ImGui::PopStyleVar();
 	}
 
 	// Nordic's arrow column, then the checkbox at the row's start (Vanilla and Nordic, the
@@ -4384,8 +4409,6 @@ namespace Theme
 	// when pressed and which holds while its drag is on (the drag keeps the row active).
 	void OutfitDragGhost(const char* a_name, Grip a_grip, const RowIcon* a_icon)
 	{
-		constexpr float kGhostAlpha = 0.7f;  // of the whole copy, on top of the style's alpha
-
 		const ImVec2 itemMin = ImGui::GetItemRectMin();
 		const ImVec2 itemMax = ImGui::GetItemRectMax();
 		const ImVec2 mouse = ImGui::GetMousePos();

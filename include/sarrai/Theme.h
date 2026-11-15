@@ -422,14 +422,11 @@ namespace Theme
 		bool        selected = false;           // marked and filled as a selected SelectRow
 		bool        dim = false;                // the name greyed
 		HeadingIcon icon = HeadingIcon::kStar;  // the mark before the name: the situation star, another drawing, or kNone for none
-		// The heading can be dragged by its grip: from its left edge to its name, where, while the
-		// heading is hovered or the grip held, a grip's dots (Grip::kName's) take `icon`'s place.
-		// A click there without a drag selects, as left of the chevron does.
+		// The heading can be dragged from anywhere on it: while it is hovered or held, a grip's
+		// dots take `icon`'s place, where the rows' dots under it are (Grip::kName). A click that
+		// became a drag does nothing.
 		bool grip = false;
-		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
-		// mark, a square 4px short of the name's line height; this text is its tooltip while it is
-		// hovered. null for none.
-		const char* warning = nullptr;
+		bool alert = false;  // the name in ErrorColor
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
@@ -442,12 +439,20 @@ namespace Theme
 	// short of the name's line height, greyed and lit while hovered as a button, its square ending 8px
 	// short of `Edit`; and `Edit` at the list's right end, in the small font, greyed and lit while
 	// hovered. A hovered one left of the chevron gets the row's hover fill. With `grip` and
-	// `warning`, as SituationHeadingLook says.
+	// `alert`, as SituationHeadingLook says.
 	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading. With
-	// `grip` the last item it submits is the grip, so the caller opens the heading's drag right
-	// after it (ImGui::BeginDragDropSource).
+	// `grip`, while a part of the heading is held it is the last item, so the caller opens the
+	// heading's drag right after it (ImGui::BeginDragDropSource).
 	HeadingClick SituationHeading(const char* name, const SituationHeadingLook& look);
 	float        SituationHeadingHeight();
+
+	// A see-through copy of the situation heading just drawn (one with an icon), shown while it
+	// is dragged, as OutfitDragGhost copies an outfit row: the popup background with the grip's
+	// dots in the icon's place and the name, no fills, marks, chevron, die, Edit or rule, held
+	// where the heading was grabbed and following the mouse above every window.
+	// Contract: right after the SituationHeading it copies (with `grip`), inside the
+	// BeginDragDropSource opened on it with ImGuiDragDropFlags_SourceNoPreviewTooltip.
+	void SituationDragGhost(const char* name);
 
 	// One row of a dropdown's popup, filled and hovered as SelectRow is; returns true when
 	// clicked, having toggled `*ticked`. `checkbox` makes it a row of a multi-choice dropdown:

@@ -10,7 +10,8 @@
 //                      its AdvanceMovie calls Config::advance;
 //                      the HUD is hidden while it is open, and the game's menus are
 //                      shown even if the console's ToggleMenus hid them; a Cursor Menu
-//                      closed while it is open is shown again (KeepCursorMenu)
+//                      closed while it is open is shown again (CursorCloseSink,
+//                      ShowCursorMenuAgain)
 //   Input          - InputDispatchHook routes events to the window; while it is
 //                      open the game sees no input at all
 //   Install          - checks both call sites, writes the two trampoline calls (SE/AE only),
@@ -230,45 +231,49 @@ namespace
 		}
 	}
 
-	// The Cursor Menu as this menu sees it since its show: it was open once, a show of it is
-	// queued, and the reshow was logged.
-	// Contract: touched only from OverlayMenu (game thread), as g_hud is.
-	struct CursorWatch
-	{
-		bool seen = false;
-		bool showQueued = false;
-		bool logged = false;
-	} g_cursorWatch;
+	// The Cursor Menu closed while the window was open (set by CursorCloseSink), and the reshow
+	// was logged since this menu's show.
+	// Contract: the event's thread is not documented, so the first is atomic; the second is
+	// touched only from OverlayMenu (game thread), as g_hud is.
+	std::atomic_bool g_cursorClosed = false;
+	bool             g_cursorReshowLogged = false;
 
-	// The game shows its Cursor Menu as this menu opens, but closes it again as the Fader Menu
-	// closes, though this menu is still open (seen when opened right after a save loaded: the
-	// cursor showed, then went about a second later); the cursor is then gone and the mouse
-	// moves it no more. Show it again. A show is
-	// sent only after the Cursor Menu was open once, so the game's own show at open is not
-	// doubled, and only once until it is open again.
-	// Contract: game thread, from OverlayMenu::AdvanceMovie, so only while this menu is open.
-	void KeepCursorMenu()
+	// The game shows its Cursor Menu as this menu opens, but closes it again as another menu
+	// closes, though this menu is still open: the Fader Menu after a save loaded (the cursor
+	// showed, then went about a second later), or another mod's HUD menu closing as the window
+	// opened, before this menu's first frame. The cursor is then gone and the mouse moves it no
+	// more. Every other event returns after a bool and the window's open state.
+	class CursorCloseSink final : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 	{
-		auto* ui = RE::UI::GetSingleton();
-		if (!ui) {
+	public:
+		RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
+		{
+			if (a_event && !a_event->opening && g_config.isOpen() && a_event->menuName == RE::CursorMenu::MENU_NAME) {
+				g_cursorClosed = true;
+			}
+			return RE::BSEventNotifyControl::kContinue;
+		}
+
+		static CursorCloseSink& Get()
+		{
+			static CursorCloseSink sink;
+			return sink;
+		}
+	};
+
+	// Shows the Cursor Menu again once per close CursorCloseSink saw.
+	// Contract: game thread, from OverlayMenu::AdvanceMovie, so only while this menu is open: the
+	// close that follows this menu's own close is never undone.
+	void ShowCursorMenuAgain()
+	{
+		if (!g_cursorClosed.exchange(false)) {
 			return;
 		}
-		if (ui->IsMenuOpen(RE::CursorMenu::MENU_NAME)) {
-			g_cursorWatch.seen = true;
-			g_cursorWatch.showQueued = false;
-			return;
-		}
-		if (!g_cursorWatch.seen || g_cursorWatch.showQueued) {
-			return;
-		}
-		auto* queue = RE::UIMessageQueue::GetSingleton();
-		if (!queue) {
-			return;
-		}
-		queue->AddMessage(RE::CursorMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
-		g_cursorWatch.showQueued = true;
-		if (!std::exchange(g_cursorWatch.logged, true)) {
-			logger::info("The Cursor Menu closed while {} was open; shown again", g_config.menuName);
+		if (auto* queue = RE::UIMessageQueue::GetSingleton()) {
+			queue->AddMessage(RE::CursorMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
+			if (!std::exchange(g_cursorReshowLogged, true)) {
+				logger::info("The Cursor Menu closed while {} was open; shown again", g_config.menuName);
+			}
 		}
 	}
 
@@ -296,7 +301,7 @@ namespace
 		// thread; Tailor 3.0 holds its preview target from CursorMenu's AdvanceMovie.
 		void AdvanceMovie(float a_interval, std::uint32_t a_currentTime) override
 		{
-			KeepCursorMenu();
+			ShowCursorMenuAgain();
 			g_config.advance();
 			RE::IMenu::AdvanceMovie(a_interval, a_currentTime);
 		}
@@ -307,7 +312,8 @@ namespace
 			case RE::UI_MESSAGE_TYPE::kShow:
 				HideHud();
 				ShowHiddenMenus();
-				g_cursorWatch = {};
+				g_cursorClosed = false;  // a close seen after the last window's own close
+				g_cursorReshowLogged = false;
 				break;
 			case RE::UI_MESSAGE_TYPE::kHide:
 			case RE::UI_MESSAGE_TYPE::kForceHide:
@@ -433,6 +439,7 @@ namespace Overlay
 			return;
 		}
 		ui->Register(g_config.menuName.c_str(), OverlayMenu::Create);
+		ui->AddEventSink<RE::MenuOpenCloseEvent>(&CursorCloseSink::Get());
 		g_menuRegistered = true;
 		logger::info("{} menu registered", g_config.pluginName);
 	}

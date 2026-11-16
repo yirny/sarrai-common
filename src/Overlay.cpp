@@ -13,7 +13,8 @@
 //                      closed while it is open is shown again (CursorCloseSink,
 //                      ShowCursorMenuAgain)
 //   Input          - InputDispatchHook routes events to the window; while it is
-//                      open the game sees no input at all
+//                      open the game sees only the releases of buttons pressed before
+//                      it opened (IsForGame)
 //   Install          - checks both call sites, writes the two trampoline calls (SE/AE only),
 //                      registers the menu
 //
@@ -37,10 +38,12 @@
 #include <imgui_impl_win32.h>
 #include <imgui_internal.h>  // InputEventsQueue, IsGamepadKey
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -238,6 +241,11 @@ namespace
 	std::atomic_bool g_cursorClosed = false;
 	bool             g_cursorReshowLogged = false;
 
+	// Buttons pressed while the window was open, by ButtonKey: their releases stay with the
+	// window (IsForGame). Emptied as the menu shows.
+	// Contract: game thread (the input dispatch and OverlayMenu::ProcessMessage).
+	std::vector<std::uint64_t> g_pressedInWindow;
+
 	// The game shows its Cursor Menu as this menu opens, but closes it again as another menu
 	// closes, though this menu is still open: the Fader Menu after a save loaded (the cursor
 	// showed, then went about a second later), or another mod's HUD menu closing as the window
@@ -314,6 +322,7 @@ namespace
 				ShowHiddenMenus();
 				g_cursorClosed = false;  // a close seen after the last window's own close
 				g_cursorReshowLogged = false;
+				g_pressedInWindow.clear();
 				break;
 			case RE::UI_MESSAGE_TYPE::kHide:
 			case RE::UI_MESSAGE_TYPE::kForceHide:
@@ -345,10 +354,44 @@ namespace
 
 	// --- Input ----------------------------------------------------------------
 
+	// A button by device and ID, as g_pressedInWindow keeps it.
+	std::uint64_t ButtonKey(const RE::ButtonEvent& a_button)
+	{
+		return (static_cast<std::uint64_t>(a_button.GetDevice()) << 32) | a_button.GetIDCode();
+	}
+
+	// Whether the game also gets this event while the window is open: only the release of a
+	// button whose press it saw before the window opened (the hotkey, its modifier, a key held
+	// meanwhile). Without it the game holds that button down after the window closes (seen in
+	// game: movement locked, Shift held). Records the presses the window takes.
+	bool IsForGame(const RE::InputEvent& a_event)
+	{
+		const auto* button = a_event.AsButtonEvent();
+		if (!button) {
+			return false;
+		}
+		const auto key = ButtonKey(*button);
+		if (button->IsDown()) {
+			g_pressedInWindow.push_back(key);
+			return false;
+		}
+		if (button->IsPressed()) {
+			return false;  // held
+		}
+		const auto pressed = std::ranges::find(g_pressedInWindow, key);
+		if (pressed == g_pressedInWindow.end()) {
+			return true;
+		}
+		g_pressedInWindow.erase(pressed);
+		return false;
+	}
+
 	// Contract: game thread. While the window is open every event goes to the
-	// window and none to the game, so the player cannot act (attack, draw, move);
-	// the window moves the game's cursor itself. The dispatch still runs, with an
-	// empty list, as it does for a batch with nothing to show.
+	// window and the game gets only the releases IsForGame passes, so the player cannot
+	// act (attack, draw, move); the window moves the game's cursor itself. Each such
+	// release goes alone, its `next` cut for the call and put back, so the engine's list
+	// is as it was when this returns; with none the dispatch still runs, with an empty list,
+	// as it does for a batch with nothing to show.
 	void InputDispatchHook::thunk(RE::BSTEventSource<RE::InputEvent*>* a_dispatcher, RE::InputEvent* const* a_events)
 	{
 		if (!a_events || !*a_events || !g_config.isOpen()) {
@@ -356,8 +399,22 @@ namespace
 			return;
 		}
 		g_config.queueInput(a_events);
-		RE::InputEvent* const none[] = { nullptr };
-		func(a_dispatcher, none);
+		bool gave = false;
+		for (auto* event = *a_events; event;) {
+			auto* const next = event->next;
+			if (IsForGame(*event)) {
+				event->next = nullptr;
+				RE::InputEvent* const one[] = { event };
+				func(a_dispatcher, one);
+				event->next = next;
+				gave = true;
+			}
+			event = next;
+		}
+		if (!gave) {
+			RE::InputEvent* const none[] = { nullptr };
+			func(a_dispatcher, none);
+		}
 	}
 
 	LRESULT WndProcHook::thunk(HWND a_hwnd, UINT a_msg, WPARAM a_wParam, LPARAM a_lParam)

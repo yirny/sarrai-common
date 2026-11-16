@@ -427,7 +427,7 @@ namespace
 			release->GetRuntimeData().heldDownSecs = held;
 			release->next = nullptr;
 			RE::InputEvent* const one[] = { release };
-			func(a_dispatcher, one);
+			InputDispatchHook::func(a_dispatcher, one);
 		}
 		g_owedReleases.clear();
 	}

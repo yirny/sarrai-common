@@ -13,8 +13,8 @@
 //                      closed while it is open is shown again (CursorCloseSink,
 //                      ShowCursorMenuAgain)
 //   Input          - InputDispatchHook routes events to the window; while it is
-//                      open the game sees only the releases of buttons pressed before
-//                      it opened (IsForGame)
+//                      open the game sees no input at all; after the close it gets the
+//                      releases of the buttons it saw go down before (GiveOwedReleases)
 //   Install          - checks both call sites, writes the two trampoline calls (SE/AE only),
 //                      registers the menu
 //
@@ -40,6 +40,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <string_view>
 #include <utility>
@@ -242,9 +243,21 @@ namespace
 	bool             g_cursorReshowLogged = false;
 
 	// Buttons pressed while the window was open, by ButtonKey: their releases stay with the
-	// window (IsForGame). Emptied as the menu shows.
+	// window (RecordButton). Emptied as the menu shows.
 	// Contract: game thread (the input dispatch and OverlayMenu::ProcessMessage).
 	std::vector<std::uint64_t> g_pressedInWindow;
+
+	// The releases the window took of buttons the game saw go down before it opened, given to
+	// the game after the close (GiveOwedReleases).
+	// Contract: game thread (the input dispatch).
+	struct OwedRelease
+	{
+		RE::INPUT_DEVICE                      device;
+		std::uint32_t                         idCode;
+		float                                 heldSecs;  // as the release said
+		std::chrono::steady_clock::time_point releasedAt;
+	};
+	std::vector<OwedRelease> g_owedReleases;
 
 	// The game shows its Cursor Menu as this menu opens, but closes it again as another menu
 	// closes, though this menu is still open: the Fader Menu after a save loaded (the cursor
@@ -354,67 +367,93 @@ namespace
 
 	// --- Input ----------------------------------------------------------------
 
-	// A button by device and ID, as g_pressedInWindow keeps it.
+	// A button by device and ID, as g_pressedInWindow and g_owedReleases keep it.
 	std::uint64_t ButtonKey(const RE::ButtonEvent& a_button)
 	{
 		return (static_cast<std::uint64_t>(a_button.GetDevice()) << 32) | a_button.GetIDCode();
 	}
 
-	// Whether the game also gets this event while the window is open: only the release of a
-	// button whose press it saw before the window opened (the hotkey, its modifier, a key held
-	// meanwhile). Without it the game holds that button down after the window closes (seen in
-	// game: movement locked, Shift held). Records the presses the window takes.
-	bool IsForGame(const RE::InputEvent& a_event)
+	// Records what the window took of a button event: a press, so its release stays with the
+	// window too; or the release of a button the game saw go down before the window opened (the
+	// hotkey, its modifier, a key held meanwhile), which the game is owed once the window has
+	// closed. Without that the game holds the button down after the close (seen in game:
+	// movement locked with the hotkey on the POV key, Shift held).
+	void RecordButton(const RE::InputEvent& a_event)
 	{
 		const auto* button = a_event.AsButtonEvent();
 		if (!button) {
-			return false;
+			return;
 		}
 		const auto key = ButtonKey(*button);
 		if (button->IsDown()) {
 			g_pressedInWindow.push_back(key);
-			return false;
+			return;
 		}
 		if (button->IsPressed()) {
-			return false;  // held
+			return;  // held
 		}
-		const auto pressed = std::ranges::find(g_pressedInWindow, key);
-		if (pressed == g_pressedInWindow.end()) {
-			return true;
+		if (const auto pressed = std::ranges::find(g_pressedInWindow, key); pressed != g_pressedInWindow.end()) {
+			g_pressedInWindow.erase(pressed);
+			return;
 		}
-		g_pressedInWindow.erase(pressed);
-		return false;
+		g_owedReleases.push_back({ button->GetDevice(), button->GetIDCode(), button->HeldDuration(), std::chrono::steady_clock::now() });
 	}
 
-	// Contract: game thread. While the window is open every event goes to the
-	// window and the game gets only the releases IsForGame passes, so the player cannot
-	// act (attack, draw, move); the window moves the game's cursor itself. Each such
-	// release goes alone, its `next` cut for the call and put back, so the engine's list
-	// is as it was when this returns; with none the dispatch still runs, with an empty list,
-	// as it does for a batch with nothing to show.
+	// Gives the game the releases it is owed, one event each with the gameplay mapping of its
+	// button and the time it was held up to now (a long hold, so a tap's action, the POV toggle,
+	// does not fire). A release handed over while the window was open did not free the button
+	// (seen in game): the game's own controls take no input then, or take it under the menu
+	// mapping.
+	// Contract: game thread, from the input dispatch, once the window's menu is off the stack.
+	void GiveOwedReleases(RE::BSTEventSource<RE::InputEvent*>* a_dispatcher)
+	{
+		auto* controls = RE::ControlMap::GetSingleton();
+		if (!controls) {
+			g_owedReleases.clear();
+			return;
+		}
+		static RE::ButtonEvent* release = RE::ButtonEvent::Create(RE::INPUT_DEVICE::kKeyboard, "", 0, 0.0f, 0.0f);  // kept for reuse
+		if (!release) {
+			g_owedReleases.clear();
+			return;
+		}
+		const auto now = std::chrono::steady_clock::now();
+		for (const auto& owed : g_owedReleases) {
+			const auto held = owed.heldSecs + std::chrono::duration<float>(now - owed.releasedAt).count();
+			release->device = owed.device;
+			release->SetUserEvent(RE::BSFixedString(controls->GetUserEventName(owed.idCode, owed.device)));
+			release->SetIDCode(owed.idCode);
+			release->GetRuntimeData().value = 0.0f;
+			release->GetRuntimeData().heldDownSecs = held;
+			release->next = nullptr;
+			RE::InputEvent* const one[] = { release };
+			func(a_dispatcher, one);
+		}
+		g_owedReleases.clear();
+	}
+
+	// Contract: game thread. While the window is open every event goes to the window and
+	// none to the game, so the player cannot act (attack, draw, move); the window moves the
+	// game's cursor itself. The dispatch still runs, with an empty list, as it does for a
+	// batch with nothing to show. After the close, the first dispatch with the window's
+	// menu gone first gives the game the releases it is owed.
 	void InputDispatchHook::thunk(RE::BSTEventSource<RE::InputEvent*>* a_dispatcher, RE::InputEvent* const* a_events)
 	{
 		if (!a_events || !*a_events || !g_config.isOpen()) {
+			if (!g_owedReleases.empty() && !g_config.isOpen()) {
+				if (auto* ui = RE::UI::GetSingleton(); ui && !ui->IsMenuOpen(g_config.menuName)) {
+					GiveOwedReleases(a_dispatcher);
+				}
+			}
 			func(a_dispatcher, a_events);
 			return;
 		}
 		g_config.queueInput(a_events);
-		bool gave = false;
-		for (auto* event = *a_events; event;) {
-			auto* const next = event->next;
-			if (IsForGame(*event)) {
-				event->next = nullptr;
-				RE::InputEvent* const one[] = { event };
-				func(a_dispatcher, one);
-				event->next = next;
-				gave = true;
-			}
-			event = next;
+		for (auto* event = *a_events; event; event = event->next) {
+			RecordButton(*event);
 		}
-		if (!gave) {
-			RE::InputEvent* const none[] = { nullptr };
-			func(a_dispatcher, none);
-		}
+		RE::InputEvent* const none[] = { nullptr };
+		func(a_dispatcher, none);
 	}
 
 	LRESULT WndProcHook::thunk(HWND a_hwnd, UINT a_msg, WPARAM a_wParam, LPARAM a_lParam)

@@ -371,9 +371,11 @@ namespace Theme
 
 	// A heading inside a list: a TextRow in LabelText's font, greyed, in capitals (the piece
 	// list's groups), with `icon` before the text and, 12px on, a list heading rule to 4px short
-	// of the list's right end. ListHeadingHeight is its height.
+	// of the list's right end; with `plainRule`, a 1px line in the border colour in every skin,
+	// for a caption that must not read as one of the list's own headings. ListHeadingHeight is
+	// its height.
 	// Contract: ListHeading inside BeginList.
-	void  ListHeading(const char* text, HeadingIcon icon = HeadingIcon::kNone);
+	void  ListHeading(const char* text, HeadingIcon icon = HeadingIcon::kNone, bool plainRule = false);
 	float ListHeadingHeight();
 
 	// ListHeading (in capitals) with a greyed "(?)" after the text, the rule after the mark; returns

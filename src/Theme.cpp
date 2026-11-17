@@ -894,9 +894,9 @@ namespace
 
 	// The rule after a list heading's text, from `a_left` to `a_right` on `a_midY`. Vanilla and
 	// Nordic with its texture: SkyUI's MCM header rule in the heading's grey, its knot at the left
-	// end and its double line stretched to its closed right end. Otherwise a 1px line in the
-	// border colour.
-	void DrawTextRule(ImDrawList* a_draw, float a_left, float a_right, float a_midY)
+	// end and its double line stretched to its closed right end. Otherwise, or `a_plain`, a 1px
+	// line in the border colour.
+	void DrawTextRule(ImDrawList* a_draw, float a_left, float a_right, float a_midY, bool a_plain = false)
 	{
 		constexpr float kKnotHeightRatio = 0.7f;  // the art's height, of the heading text's size (the MCM's to its header text)
 		// Where the knot ends and where the line's closed end starts, of the art's width (its vector shape).
@@ -910,7 +910,7 @@ namespace
 		const float aspect = g_headingKnot.size.x / g_headingKnot.size.y;
 		const float knotWidth = height * aspect * kKnotEnd;
 		const float capWidth = height * aspect * (1.0f - kCapStart);
-		if (g_skin == Theme::Skin::kModern || !g_headingKnot.view || a_right - a_left < knotWidth + capWidth) {
+		if (a_plain || g_skin == Theme::Skin::kModern || !g_headingKnot.view || a_right - a_left < knotWidth + capWidth) {
 			const float y = std::floor(a_midY) + 0.5f;  // on a pixel's centre, so a 1px line stays sharp
 			a_draw->AddLine(ImVec2(a_left, y), ImVec2(a_right, y), ImGui::GetColorU32(ImGuiCol_Border));
 			return;
@@ -4031,14 +4031,14 @@ namespace Theme
 	// The rule after a ListHeading's text, kTextRuleGap past `a_textRight`, to kRuleEndPad short of
 	// where the row's fills end (RowFillRight). `a_cursor` is the heading's cursor
 	// before its Dummy, `a_width` the content width it took.
-	void DrawListHeadingRule(ImDrawList* a_draw, ImVec2 a_cursor, float a_width, float a_textRight, float a_midY)
+	void DrawListHeadingRule(ImDrawList* a_draw, ImVec2 a_cursor, float a_width, float a_textRight, float a_midY, bool a_plain = false)
 	{
 		const float fillRight = RowFillRight(ImGui::GetWindowPos().x, a_cursor.x + a_width);
-		DrawTextRule(a_draw, a_textRight + kTextRuleGap * g_scale, fillRight - kRuleEndPad * g_scale, a_midY);
+		DrawTextRule(a_draw, a_textRight + kTextRuleGap * g_scale, fillRight - kRuleEndPad * g_scale, a_midY, a_plain);
 	}
 
 	// Laid out as TextRow lays out its text, the icon first, then the rule to the list's right end.
-	void ListHeading(const char* a_text, HeadingIcon a_icon)
+	void ListHeading(const char* a_text, HeadingIcon a_icon, bool a_plainRule)
 	{
 		PushLabelFont();
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
@@ -4051,7 +4051,7 @@ namespace Theme
 		const Caps caps(a_text);
 		draw->AddText(text, grey, caps.c_str());
 		const ImVec2 size = ImGui::CalcTextSize(caps.c_str());
-		DrawListHeadingRule(draw, cursor, width, text.x + size.x, text.y + size.y * 0.5f);
+		DrawListHeadingRule(draw, cursor, width, text.x + size.x, text.y + size.y * 0.5f, a_plainRule);
 		ImGui::PopFont();
 	}
 

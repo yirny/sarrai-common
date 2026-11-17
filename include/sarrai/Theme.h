@@ -361,6 +361,13 @@ namespace Theme
 	// Contract: the texts are shown as they are.
 	void RunText(std::span<const SubtitleRun> parts, bool plainNames = false);
 
+	// RunText wrapped as TextWrapped wraps (at the text wrap position pushed, else the content's
+	// right edge), breaking only after a space, so a name stays whole with its icon and the
+	// punctuation after it; a name wider than the line is cut with an ellipsis. It claims the
+	// widest line's width.
+	// Contract: the texts are shown as they are.
+	void RunTextWrapped(std::span<const SubtitleRun> parts);
+
 	// A part of RunLinks' text: a link, or what sits between links (a comma, a full stop).
 	struct LinkRun
 	{
@@ -446,9 +453,10 @@ namespace Theme
 		bool grip = false;
 		bool alert = false;  // the name in ErrorColor
 		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
-		// mark, a square 4px short of the name's line height; this text is its tooltip while it is
-		// hovered. null for none.
-		const char* warning = nullptr;
+		// mark, a square 4px short of the name's line height. Its tooltip is the caller's:
+		// `warningHovered` (if any) is set to whether the mark is hovered.
+		bool  warning = false;
+		bool* warningHovered = nullptr;
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:

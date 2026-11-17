@@ -57,7 +57,7 @@
 #include <wrl/client.h>
 
 #include <imgui.h>
-#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview, RenderTextEllipsis
+#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview, RenderTextEllipsis, CalcWrapWidthForPos
 
 #include <algorithm>
 #include <array>
@@ -3009,6 +3009,19 @@ namespace Theme
 			return OutfitIconTexture(g_defaultIconKey) ? a_look.iconSide + kRowIconGap * g_scale : 0.0f;
 		}
 
+		// A named part's icon, its room's left edge at `a_x` on the line whose top is `a_top`.
+		void DrawRunIcon(ImDrawList* a_draw, const SubtitleRun& a_run, float a_x, float a_top, const RunLook& a_look, ImU32 a_color)
+		{
+			if (a_run.icon != HeadingIcon::kNone) {
+				DrawIconCentredOn(a_draw, a_run.icon, a_x, a_top + CapsMiddle(), a_look.iconSide, a_color, a_look.iconThick);
+			} else if (!a_run.rowIconKey.empty()) {
+				// Whole pixels, so the PNG stays sharp.
+				const float side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
+				const float midY = a_look.rowIconAsLine ? CapsMiddle() : ImGui::GetTextLineHeight() * 0.5f;
+				DrawTintedOutfitIcon(a_draw, a_run.rowIconKey, ImVec2(a_x, std::round(a_top + midY - side * 0.5f)), side, a_color);
+			}
+		}
+
 		// The parts on one line, at the cursor; the last name's cut leaves whatever still does
 		// not fit to the window's clipping.
 		// Contract: in the font the line is laid out in, with ItemSpacing the gap below it.
@@ -3032,14 +3045,7 @@ namespace Theme
 			float        x = topLeft.x;
 			for (const auto& run : a_runs) {
 				const bool named = run.icon != HeadingIcon::kNone || !run.rowIconKey.empty();
-				if (run.icon != HeadingIcon::kNone) {
-					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), a_look.iconSide, ImGui::GetColorU32(emphasis), a_look.iconThick);
-				} else if (named) {
-					// Whole pixels, so the PNG stays sharp.
-					const float side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
-					const float midY = a_look.rowIconAsLine ? CapsMiddle() : lineHeight * 0.5f;
-					DrawTintedOutfitIcon(draw, run.rowIconKey, ImVec2(x, std::round(topLeft.y + midY - side * 0.5f)), side, ImGui::GetColorU32(emphasis));
-				}
+				DrawRunIcon(draw, run, x, topLeft.y, a_look, ImGui::GetColorU32(emphasis));
 				x += RunIconRoom(run, a_look);
 
 				const ImVec2 size = ImGui::CalcTextSize(run.text);
@@ -3188,6 +3194,93 @@ namespace Theme
 	void RunText(std::span<const SubtitleRun> a_parts, bool a_plainNames)
 	{
 		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true, a_plainNames });  // 1px lines at 1080p
+	}
+
+	// Laid out twice: once to find the lines and the widest, so the item claims its size before
+	// the drawing, and once to draw.
+	void RunTextWrapped(std::span<const SubtitleRun> a_parts)
+	{
+		struct Piece
+		{
+			std::size_t      part;
+			std::string_view text;
+			float            iconRoom;  // a name's, on its piece
+			float            width;     // the icon's room and the text's
+		};
+		const RunLook look{ ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true };  // 1px lines at 1080p
+		// A plain part's pieces end after each space; a name is one piece.
+		std::vector<Piece> pieces;
+		for (std::size_t i = 0; i < a_parts.size(); ++i) {
+			const auto&            part = a_parts[i];
+			const std::string_view text = part.text;
+			if (part.icon != HeadingIcon::kNone || !part.rowIconKey.empty()) {
+				const float room = RunIconRoom(part, look);
+				pieces.push_back({ i, text, room, room + ImGui::CalcTextSize(text.data(), text.data() + text.size()).x });
+				continue;
+			}
+			for (std::size_t at = 0; at < text.size();) {
+				const auto        space = text.find(' ', at);
+				const std::size_t end = space == std::string_view::npos ? text.size() : space + 1;
+				const auto        piece = text.substr(at, end - at);
+				pieces.push_back({ i, piece, 0.0f, ImGui::CalcTextSize(piece.data(), piece.data() + piece.size()).x });
+				at = end;
+			}
+		}
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		const float  wrap = ImGui::CalcWrapWidthForPos(origin, (std::max)(0.0f, ImGui::GetCurrentWindow()->DC.TextWrapPos));
+		const float  lineHeight = ImGui::GetTextLineHeight();
+		const float  spaceWidth = ImGui::CalcTextSize(" ").x;
+		// Calls `a_place(piece, x, line)` for each piece; returns the lines and the widest. A
+		// word, the pieces up to one ending in a space, goes to the next line when it would pass
+		// the edge, its trailing space left hanging.
+		const auto layOut = [&](auto&& a_place) {
+			float x = 0.0f;
+			float widest = 0.0f;
+			int   line = 0;
+			for (std::size_t p = 0; p < pieces.size();) {
+				std::size_t end = p;
+				float       width = 0.0f;
+				do {
+					width += pieces[end].width;
+				} while (!pieces[end++].text.ends_with(' ') && end < pieces.size());
+				const float hanging = pieces[end - 1].text.ends_with(' ') ? spaceWidth : 0.0f;
+				if (x > 0.0f && x + width - hanging > wrap) {
+					++line;
+					x = 0.0f;
+				}
+				for (; p < end; ++p) {
+					a_place(pieces[p], x, line);
+					x += pieces[p].width;
+				}
+				widest = (std::max)(widest, (std::min)(x - hanging, wrap));
+			}
+			return std::pair{ line + 1, widest };
+		};
+		const auto [lines, widest] = layOut([](const Piece&, float, int) {});
+		ImGui::Dummy(ImVec2(widest, static_cast<float>(lines) * lineHeight));
+
+		auto*       draw = ImGui::GetWindowDrawList();
+		const ImU32 emphasis = ImGui::GetColorU32(EmphasisColor(false));
+		const float right = origin.x + wrap;
+		layOut([&](const Piece& a_piece, float a_x, int a_line) {
+			const auto&  part = a_parts[a_piece.part];
+			const bool   named = part.icon != HeadingIcon::kNone || !part.rowIconKey.empty();
+			const ImVec2 at(origin.x + a_x, origin.y + static_cast<float>(a_line) * lineHeight);
+			if (named) {
+				DrawRunIcon(draw, part, at.x, at.y, look, emphasis);
+			}
+			const float  left = at.x + a_piece.iconRoom;
+			const char*  begin = a_piece.text.data();
+			const char*  end = begin + a_piece.text.size();
+			const ImVec2 size = ImGui::CalcTextSize(begin, end);
+			if (named && left + size.x > right) {
+				ImGui::PushStyleColor(ImGuiCol_Text, EmphasisColor(false));  // RenderTextEllipsis draws in the text colour
+				ImGui::RenderTextEllipsis(draw, ImVec2(left, at.y), ImVec2(right, at.y + size.y), right, begin, end, &size);
+				ImGui::PopStyleColor();
+			} else {
+				draw->AddText(ImVec2(left, at.y), named ? emphasis : look.plain, begin, end);
+			}
+		});
 	}
 
 	namespace
@@ -4274,11 +4367,12 @@ namespace Theme
 			DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
 		}
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
-		bool warningHovered = false;
 		if (a_look.warning) {
 			const IconFrame frame{ ImVec2(warningX, midY - iconSide * 0.5f), iconSide };
 			DrawWarningIcon(draw, frame, ErrorColor(), thick);
-			warningHovered = selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+			if (a_look.warningHovered) {
+				*a_look.warningHovered = selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+			}
 		}
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);
@@ -4303,8 +4397,6 @@ namespace Theme
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
-		} else if (warningHovered) {
-			Tooltip(a_look.warning);
 		}
 		if (dice) {
 			return HeadingClick::kDice;

@@ -2512,6 +2512,17 @@ namespace
 		}
 	}
 
+	// A warning: a circle with an exclamation mark in it, a stroke from above the middle and a dot
+	// below it, on the centre column (IconFrame::Pixel), so it stays crisp.
+	void DrawWarningIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	{
+		const ImVec2 centre = a_frame.Pixel(0.50f, 0.50f);
+		a_draw->PathArcTo(centre, a_frame.side * 0.5f - a_thick * 0.5f, 0.0f, 2.0f * IM_PI);
+		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
+		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.24f), a_frame.Pixel(0.50f, 0.58f), a_color, a_thick);
+		a_draw->AddCircleFilled(a_frame.Pixel(0.50f, 0.75f), (std::max)(1.0f, 0.06f * a_frame.side), a_color);
+	}
+
 	// The radius of a drag grip's dots on the back buffer.
 	float GripDotRadius()
 	{
@@ -4079,7 +4090,9 @@ namespace Theme
 		PopSmallFont();
 		const float nameRight = textX + ImGui::CalcTextSize(a_name).x;
 		const float countX = nameRight + ImGui::GetStyle().ItemInnerSpacing.x;
-		const float textRight = count.empty() ? nameRight : countX + countSize.x;
+		const float countRight = count.empty() ? nameRight : countX + countSize.x;
+		const float warningX = countRight + ImGui::GetStyle().ItemInnerSpacing.x;
+		const float textRight = a_look.warning ? warningX + iconSide : countRight;
 		const float chevronX = textRight + pad * 2.0f;
 		const float editX = fillMax.x - SituationNameInset() - editSize.x;  // as far in from the right end as the name from the left
 		const float editLeft = editX - pad;
@@ -4149,6 +4162,12 @@ namespace Theme
 			DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
 		}
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
+		bool warningHovered = false;
+		if (a_look.warning) {
+			const IconFrame frame{ ImVec2(warningX, midY - iconSide * 0.5f), iconSide };
+			DrawWarningIcon(draw, frame, ErrorColor(), thick);
+			warningHovered = selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+		}
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);
 		}
@@ -4172,6 +4191,8 @@ namespace Theme
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
+		} else if (warningHovered) {
+			Tooltip(a_look.warning);
 		}
 		if (dice) {
 			return HeadingClick::kDice;

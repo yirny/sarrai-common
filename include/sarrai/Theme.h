@@ -427,6 +427,10 @@ namespace Theme
 		// became a drag does nothing.
 		bool grip = false;
 		bool alert = false;  // the name in ErrorColor
+		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
+		// mark, a square 4px short of the name's line height; this text is its tooltip while it is
+		// hovered. null for none.
+		const char* warning = nullptr;
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:
@@ -438,8 +442,8 @@ namespace Theme
 	// lit while hovered, then, 12px on, a list heading rule; 12px on, with `random`, a die, a square 4px
 	// short of the name's line height, greyed and lit while hovered as a button, its square ending 8px
 	// short of `Edit`; and `Edit` at the list's right end, in the small font, greyed and lit while
-	// hovered. A hovered one left of the chevron gets the row's hover fill. With `grip` and
-	// `alert`, as SituationHeadingLook says.
+	// hovered. A hovered one left of the chevron gets the row's hover fill. With `grip`, `alert`
+	// and `warning`, as SituationHeadingLook says.
 	// Contract: inside BeginList, laid out with no item spacing; PushID around each heading. With
 	// `grip`, while a part of the heading is held it is the last item, so the caller opens the
 	// heading's drag right after it (ImGui::BeginDragDropSource).

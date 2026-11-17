@@ -360,6 +360,21 @@ namespace Theme
 	// Contract: the texts are shown as they are.
 	void RunText(std::span<const SubtitleRun> parts, bool plainNames = false);
 
+	// A part of RunLinks' text: a link, or what sits between links (a comma, a full stop).
+	struct LinkRun
+	{
+		const char* text;
+		bool        link = true;
+	};
+
+	// Body text made of `runs`, wrapped to the content width as TextWrapped wraps it, in the
+	// text colour; a link run under the mouse is the one hovered, and with `lit` it is drawn
+	// in LinkColor's lit colour and underlined. Returns the index of the link run clicked, or
+	// -1; `hovered` (if any) gets the one hovered, or -1. Not reached by keyboard or
+	// controller navigation, so whatever a click does needs another way in.
+	// Contract: in the caller's ID scope (one per scope); the texts are shown as they are.
+	int RunLinks(std::span<const LinkRun> runs, bool lit, int* hovered = nullptr);
+
 	// HeadingText with `icon` before its own line, sized as HeadingRunText's line icons, in the
 	// text colour, 6px before the text; Nordic centres the icon and the text together.
 	void HeadingText(HeadingIcon icon, const char* text, const char* subtitle = nullptr);

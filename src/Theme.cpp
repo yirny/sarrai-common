@@ -3190,6 +3190,86 @@ namespace Theme
 		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true, a_plainNames });  // 1px lines at 1080p
 	}
 
+	namespace
+	{
+		// `a_text`, the runs' texts joined, laid out wrapped to `a_wrapWidth` in the current
+		// font as TextWrapped lays it out: calls `a_piece(run, begin, end, offset, width)` for
+		// each part of a run on one line, `offset` its top left from the text's. Returns the
+		// number of lines.
+		template <class Piece>
+		int LayOutLinkRuns(std::span<const LinkRun> a_runs, std::string_view a_text, float a_wrapWidth, Piece&& a_piece)
+		{
+			auto*       font = ImGui::GetFont();
+			const float size = ImGui::GetFontSize();
+			const float lineHeight = ImGui::GetTextLineHeight();
+			const char* begin = a_text.data();
+			const char* end = begin + a_text.size();
+			std::size_t run = 0;
+			std::size_t runEnd = a_runs.empty() ? 0 : std::strlen(a_runs[0].text);
+			int         lines = 0;
+			for (const char* line = begin; line < end; ++lines) {
+				const char* lineEnd = font->CalcWordWrapPosition(size, line, end, a_wrapWidth);
+				if (lineEnd <= line) {
+					lineEnd = line + 1;  // ImGui puts at least a character on a line; never loop on none
+				}
+				float x = 0.0f;
+				for (const char* at = line; at < lineEnd;) {
+					while (begin + runEnd <= at) {  // empty runs too
+						runEnd += std::strlen(a_runs[++run].text);
+					}
+					const char* pieceEnd = (std::min)(lineEnd, begin + runEnd);
+					const float width = font->CalcTextSizeA(size, FLT_MAX, 0.0f, at, pieceEnd).x;
+					a_piece(run, at, pieceEnd, ImVec2(x, static_cast<float>(lines) * lineHeight), width);
+					x += width;
+					at = pieceEnd;
+				}
+				line = ImTextCalcWordWrapNextLineStart(lineEnd, end);
+			}
+			return lines;
+		}
+	}
+
+	// Laid out twice: once to find the run under the mouse, so the drawing knows which to
+	// light, and once to draw.
+	int RunLinks(std::span<const LinkRun> a_runs, bool a_lit, int* a_hovered)
+	{
+		std::string text;
+		for (const auto& run : a_runs) {
+			text += run.text;
+		}
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		const float  wrapWidth = (std::max)(1.0f, ImGui::GetContentRegionAvail().x);
+		const float  lineHeight = ImGui::GetTextLineHeight();
+		const ImVec2 mouse = ImGui::GetIO().MousePos;
+		int          under = -1;
+		const int    lines = LayOutLinkRuns(a_runs, text, wrapWidth, [&](std::size_t a_run, const char*, const char*, ImVec2 a_offset, float a_width) {
+			const ImVec2 topLeft(origin.x + a_offset.x, origin.y + a_offset.y);
+			if (a_runs[a_run].link && ImRect(topLeft, ImVec2(topLeft.x + a_width, topLeft.y + lineHeight)).Contains(mouse)) {
+				under = static_cast<int>(a_run);
+			}
+		});
+		const bool   pressed = ImGui::InvisibleButton("##RunLinks", ImVec2(wrapWidth, (std::max)(1.0f, static_cast<float>(lines) * lineHeight)));
+		const int    hovered = ImGui::IsItemHovered() ? under : -1;
+		if (a_hovered) {
+			*a_hovered = hovered;
+		}
+
+		auto*       draw = ImGui::GetWindowDrawList();
+		const ImU32 plain = ImGui::GetColorU32(ImGuiCol_Text);
+		const ImU32 lit = LinkColor(true);
+		const float underlineY = std::round(ImGui::GetFontBaked()->Ascent + g_scale);  // 1px under the baseline at 1080p
+		const float thick = (std::max)(1.0f, std::round(g_scale));
+		LayOutLinkRuns(a_runs, text, wrapWidth, [&](std::size_t a_run, const char* a_begin, const char* a_end, ImVec2 a_offset, float a_width) {
+			const ImVec2 at(origin.x + a_offset.x, origin.y + a_offset.y);
+			const bool   on = a_lit && static_cast<int>(a_run) == hovered;
+			draw->AddText(at, on ? lit : plain, a_begin, a_end);
+			if (on) {
+				draw->AddRectFilled(ImVec2(at.x, at.y + underlineY), ImVec2(at.x + a_width, at.y + underlineY + thick), lit);
+			}
+		});
+		return pressed ? hovered : -1;
+	}
+
 	float HeadingTabsWidth(std::span<const char* const> a_labels)
 	{
 		const bool  ownFont = PushHeadingFont();

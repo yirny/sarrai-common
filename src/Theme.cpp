@@ -101,7 +101,7 @@ namespace
 	// take the window's (Nordic's is wider for its corner ornaments; pixels at 1080p).
 	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
 	// The Vanilla and Nordic windows' padding before each skin widens its main window's for
-	// its corner ornaments; Vanilla's popups and tooltips keep it (PushPopupPadding; pixels at 1080p).
+	// its corner ornaments; Vanilla's tooltips keep it (PushPopupPadding; pixels at 1080p).
 	constexpr ImVec2 kSquareWindowPadding{ 20.0f, 16.0f };
 	// Width of Modern's accent rule on a selected row's left edge (pixels at 1080p).
 	constexpr float kAccentRuleWidth = 2.0f;
@@ -280,6 +280,7 @@ namespace
 	std::map<ImGuiID, ScrollbarFade> g_scrollbarFades;
 	ImGuiID                          g_listFadeId = 0;   // the open BeginList list's entry
 	ImGuiID                          g_comboFadeId = 0;  // the open BeginCombo dropdown's entry
+	ImGuiID                          g_areaFadeId = 0;   // the open BeginScrollArea area's entry
 
 	// Modern's colours in the frame being built. Render thread only.
 	Theme::Palette g_palette;
@@ -1240,11 +1241,11 @@ namespace
 
 	// The game's item card knots at the window's four corners: the top-left one
 	// (vanilla-corner.png), mirrored into the others by drawing it from the corner inwards, in
-	// the band's colour, over a patch of the window's glass where it reaches past the outline
+	// the band's colour, over a patch of the window's glass `a_glass` where it reaches past the outline
 	// `a_outline` wide. Each knot carries the band's first stretch from its corner; returns how
 	// far along each side that runs, where the band (translucent, never under a knot) starts.
 	// Without the texture: draws nothing and returns 0.
-	float DrawVanillaCorners(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_bottomRight, float a_outline)
+	float DrawVanillaCorners(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_bottomRight, float a_outline, ImU32 a_glass)
 	{
 		// Pixels at 1080p, the item card's own (its 1280x720 stage at 1.5): how far the knot's
 		// outer corner sits outside the window's, and the glass from there along each side.
@@ -1257,7 +1258,6 @@ namespace
 		const float  reach = std::round(kReach * g_scale);
 		const float  side = std::round(g_vanillaCorner.size.x * g_scale);
 		const float  backing = std::round(kBacking * g_scale);
-		const ImU32  glass = ImGui::GetColorU32(ImGuiCol_WindowBg);
 		const ImU32  band = ImGui::GetColorU32(ImGuiCol_Border);
 		const ImVec2 corners[] = { a_topLeft, ImVec2(a_bottomRight.x, a_topLeft.y), ImVec2(a_topLeft.x, a_bottomRight.y), a_bottomRight };
 		a_draw->PushClipRect(ImVec2(a_topLeft.x - reach, a_topLeft.y - reach), ImVec2(a_bottomRight.x + reach, a_bottomRight.y + reach), false);
@@ -1266,7 +1266,7 @@ namespace
 			const float y = corner.y == a_topLeft.y ? 1.0f : -1.0f;
 			const auto  at = [&](float a_dx, float a_dy) { return ImVec2(corner.x + x * a_dx, corner.y + y * a_dy); };
 			const auto  fill = [&](ImVec2 a_a, ImVec2 a_b) {
-				a_draw->AddRectFilled(ImVec2((std::min)(a_a.x, a_b.x), (std::min)(a_a.y, a_b.y)), ImVec2((std::max)(a_a.x, a_b.x), (std::max)(a_a.y, a_b.y)), glass);
+				a_draw->AddRectFilled(ImVec2((std::min)(a_a.x, a_b.x), (std::min)(a_a.y, a_b.y)), ImVec2((std::max)(a_a.x, a_b.x), (std::max)(a_a.y, a_b.y)), a_glass);
 			};
 			// The glass beyond the outline: a strip along the top or bottom, then one down the
 			// side, meeting the outline but never on it, so the translucent glass stays even.
@@ -1278,11 +1278,11 @@ namespace
 		return side - reach;
 	}
 
-	// Vanilla's main window frame: a band of the rule colour inside the window's edge, and
-	// outside it a band of the window's own glass, with the game's item card knots at the
+	// Vanilla's window frame: a band of the rule colour inside the window's edge, and
+	// outside it a band of the window's own glass `a_glass` (WindowBg, or a popup's PopupBg), with the game's item card knots at the
 	// corners (DrawVanillaCorners). The clip rect is the frame's own, so the outer band shows
 	// past the window.
-	void DrawVanillaFrame()
+	void DrawVanillaFrame(ImU32 a_glass)
 	{
 		constexpr float kOutlineWidth = 4.0f;  // pixels at 1080p, the glass outside the band
 
@@ -1295,8 +1295,8 @@ namespace
 		const ImVec2 outerTopLeft(topLeft.x - outline, topLeft.y - outline);
 		const ImVec2 outerBottomRight(bottomRight.x + outline, bottomRight.y + outline);
 		draw->PushClipRect(outerTopLeft, outerBottomRight, false);
-		FillFrame(draw, outerTopLeft, outerBottomRight, outline, ImGui::GetColorU32(ImGuiCol_WindowBg));
-		const float clear = DrawVanillaCorners(draw, topLeft, bottomRight, outline);
+		FillFrame(draw, outerTopLeft, outerBottomRight, outline, a_glass);
+		const float clear = DrawVanillaCorners(draw, topLeft, bottomRight, outline, a_glass);
 		FillFrame(draw, topLeft, bottomRight, band, ImGui::GetColorU32(ImGuiCol_Border), clear);
 		draw->PopClipRect();
 	}
@@ -2957,8 +2957,8 @@ namespace Theme
 
 	void DecorateWindow(bool a_popup)
 	{
-		if (g_skin == Skin::kVanilla && !a_popup) {
-			DrawVanillaFrame();
+		if (g_skin == Skin::kVanilla) {
+			DrawVanillaFrame(ImGui::GetColorU32(a_popup ? ImGuiCol_PopupBg : ImGuiCol_WindowBg));
 			return;
 		}
 		if (g_skin != Skin::kNordic) {
@@ -4014,6 +4014,34 @@ namespace Theme
 	void PopPopupPadding()
 	{
 		ImGui::PopStyleVar();
+	}
+
+	// Always one push, the style's own border in Modern, so every push has its pop. A modal
+	// takes the style's window padding, the main window's, without a push.
+	void PushModalStyle()
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, g_skin == Skin::kModern ? ImGui::GetStyle().PopupBorderSize : 0.0f);
+	}
+
+	void PopModalStyle()
+	{
+		ImGui::PopStyleVar();
+	}
+
+	bool BeginScrollArea(const char* a_id, float a_maxHeight)
+	{
+		g_areaFadeId = ImGui::GetID(a_id);
+		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, a_maxHeight));
+		const int  colors = PushScrollbarColors(g_areaFadeId);
+		const bool visible = ImGui::BeginChild(a_id, ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground);
+		ImGui::PopStyleColor(colors);
+		return visible;
+	}
+
+	void EndScrollArea()
+	{
+		DrawSkinScrollbar(UpdateScrollbarFade(g_areaFadeId));
+		ImGui::EndChild();
 	}
 
 	float ListPaddingY()

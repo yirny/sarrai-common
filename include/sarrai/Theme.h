@@ -85,8 +85,9 @@ namespace Theme
 	// says what a skin draws in place of ImGui's own.
 
 	// Call right after ImGui::Begin, or BeginPopupModal with `popup`: corner ornaments (Nordic);
-	// on the main window, Vanilla's frame, a 3px band of the rule colour inside its edge and a
-	// 4px band of the window's glass outside it, in place of ImGui's border.
+	// Vanilla's frame, a 3px band of the rule colour inside its edge and a 4px band of the
+	// window's glass outside it (a popup's own background), in place of ImGui's border.
+	// A modal begins inside PushModalStyle, so it draws no border of its own under them.
 	void DecorateWindow(bool popup = false);
 
 	// One line in the heading font, then the subtitle (if any) greyed under it;
@@ -699,10 +700,22 @@ namespace Theme
 	void BeginTooltip();
 	void EndTooltip();
 
-	// The padding of popups: Vanilla's keep the square skins' while its main window pads wider
-	// for the corner knots, which popups do not draw; the other skins keep the style's. Push
-	// just before a popup begins (ImGui reads the padding as it begins) and pop right after.
+	// The padding of tooltips: Vanilla's keep the square skins' while its windows pad wider
+	// for the corner knots, which tooltips do not draw; the other skins keep the style's. Push
+	// just before a tooltip begins (ImGui reads the padding as it begins) and pop right after.
 	// The tooltips above do this themselves.
 	void PushPopupPadding();
 	void PopPopupPadding();
+
+	// A modal window as the main window looks: its padding, and in Vanilla and Nordic no ImGui
+	// border, since DecorateWindow(true) draws the frame or the ornaments. Push just before
+	// BeginPopupModal and pop right after.
+	void PushModalStyle();
+	void PopModalStyle();
+
+	// A borderless area without a background, as tall as its content up to `maxHeight` (pixels
+	// on the back buffer), scrolling past it with the skin's scroll bar, which fades as a list's
+	// does (BeginList). Used like BeginChild / EndChild: always call EndScrollArea. Not nested.
+	bool BeginScrollArea(const char* id, float maxHeight);
+	void EndScrollArea();
 }

@@ -715,7 +715,10 @@ namespace Theme
 
 	// A borderless area without a background, as tall as its content up to `maxHeight` (pixels
 	// on the back buffer), scrolling past it with the skin's scroll bar, which fades as a list's
-	// does (BeginList). Used like BeginChild / EndChild: always call EndScrollArea. Not nested.
+	// does (BeginList). Its content is as wide as the window's; the bar goes past it, into the
+	// window's right padding, so an auto-resizing window around it needs its width fixed
+	// (SetNextWindowSizeConstraints) or it grows by the bar at every frame. Used like
+	// BeginChild / EndChild: always call EndScrollArea. Not nested.
 	bool BeginScrollArea(const char* id, float maxHeight);
 	void EndScrollArea();
 }

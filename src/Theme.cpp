@@ -998,8 +998,8 @@ namespace
 			fade = {};
 		}
 		const double now = ImGui::GetTime();
-		const bool   hovered = g.HoveredWindow == window;  // the mouse in the window, nothing over it
-		if (!window->ScrollbarY) {
+		const bool   hovered = g.HoveredWindow == window;          // the mouse in the window, nothing over it
+		if (!window->ScrollbarY || window->ScrollMax.y <= 0.0f) {  // a bar kept while nothing scrolls (BeginScrollArea) stays hidden
 			fade.shown = false;
 		} else if ((hovered && (g.IO.MouseWheel != 0.0f || ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y).Contains(g.IO.MousePos))) ||
 				   g.ActiveId == ImGui::GetWindowScrollbarID(window, ImGuiAxis_Y)) {
@@ -4030,10 +4030,14 @@ namespace Theme
 
 	bool BeginScrollArea(const char* a_id, float a_maxHeight)
 	{
+		// The bar's room is always kept, past the content in the window's right padding, so the
+		// content is as wide as the window's whether or not the bar shows.
+		const float width = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().ScrollbarSize;
 		g_areaFadeId = ImGui::GetID(a_id);
 		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, a_maxHeight));
 		const int  colors = PushScrollbarColors(g_areaFadeId);
-		const bool visible = ImGui::BeginChild(a_id, ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBackground);
+		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened,
+			ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysVerticalScrollbar);
 		ImGui::PopStyleColor(colors);
 		return visible;
 	}

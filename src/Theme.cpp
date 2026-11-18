@@ -1795,13 +1795,21 @@ namespace
 		}
 	}
 
-	// Room between a field's left edge and its text: a boxed field's frame
-	// padding, then the icon and a gap after it.
+	// Whether a field keeps the frame padding at its left and right ends: a boxed one, and an
+	// underlined one with a fill behind it (FieldStyle::filled), whose text and arrow would
+	// touch the fill's edges.
+	bool HasSidePadding(const Theme::FieldStyle& a_style)
+	{
+		return a_style.shape == Theme::FieldShape::kBoxed || (a_style.filled && a_style.shape == Theme::FieldShape::kUnderlined);
+	}
+
+	// Room between a field's left edge and its text: the frame padding of a field
+	// that keeps it (HasSidePadding), then the icon and a gap after it.
 	// Contract: called with the skin's frame padding in force (not PushFieldStyle's).
 	float FieldTextInset(const Theme::FieldStyle& a_style)
 	{
 		const auto& style = ImGui::GetStyle();
-		float       inset = a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		float       inset = HasSidePadding(a_style) ? style.FramePadding.x : 0.0f;
 		if (a_style.icon != Theme::FieldIcon::kNone) {
 			inset += ImGui::GetFontSize() * kFieldIconRatio + style.ItemInnerSpacing.x;
 		}
@@ -1864,6 +1872,8 @@ namespace
 		ImGui::GetWindowDrawList()->AddLine(ImVec2(a_min.x, a_max.y - 0.5f), ImVec2(a_max.x, a_max.y - 0.5f), color);
 	}
 
+	void DrawPlusSquare(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color);
+
 	// The field's icon in grey, at the start of its text inset and centred on
 	// its rect (screen pixels). The shapes are laid out in fractions of the
 	// icon's size.
@@ -1876,12 +1886,17 @@ namespace
 			return;
 		}
 		const float size = ImGui::GetFontSize() * kFieldIconRatio;
-		const float left = a_min.x + (a_style.shape == Theme::FieldShape::kBoxed ? ImGui::GetStyle().FramePadding.x : 0.0f);
+		const float left = a_min.x + (HasSidePadding(a_style) ? ImGui::GetStyle().FramePadding.x : 0.0f);
 		const float top = (a_min.y + a_max.y - size) * 0.5f;
 		const auto  at = [&](float a_x, float a_y) { return ImVec2(left + size * a_x, top + size * a_y); };
 		const ImU32 color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float thickness = (std::max)(1.0f, kLineWidth * g_scale);
 		auto*       draw = ImGui::GetWindowDrawList();
+		if (a_style.icon == Theme::FieldIcon::kAdd) {
+			// LabelLink's plus mark, on whole pixels as its pieces need.
+			DrawPlusSquare(draw, ImVec2(std::round(left), std::round(top)), std::round(size), color);
+			return;
+		}
 		if (a_style.icon == Theme::FieldIcon::kSearch) {
 			const ImVec2 centre = at(0.42f, 0.42f);
 			const float  radius = size * 0.3f;
@@ -1969,7 +1984,7 @@ namespace
 		const bool   ownArrow = HasCustomDropdownArrow();
 		const bool   lit = a_open || ImGui::IsItemHovered();
 		const ImVec2 arrow = DropdownArrowSize();
-		const float  arrowLeft = frameMax.x - (a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f) - arrow.x;
+		const float  arrowLeft = frameMax.x - (HasSidePadding(a_style) ? style.FramePadding.x : 0.0f) - arrow.x;
 		// Without its own arrow, ImGui's arrow button already lies outside the preview's rect.
 		const float textRight = ownArrow ? arrowLeft - style.ItemInnerSpacing.x : frameMax.x;
 		DrawFieldRule(a_style, frameMin, frameMax);
@@ -4069,7 +4084,7 @@ namespace Theme
 		if (!HasCustomDropdownArrow()) {
 			return text + FieldHeight(field);  // ImGui's square arrow button
 		}
-		const float right = field.shape == FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		const float right = HasSidePadding(field) ? style.FramePadding.x : 0.0f;
 		return text + style.ItemInnerSpacing.x + DropdownArrowSize().x + right;
 	}
 

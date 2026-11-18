@@ -608,7 +608,8 @@ namespace Theme
 	{
 		kNone,
 		kSearch,  // a magnifying glass
-		kFilter   // a funnel
+		kFilter,  // a funnel
+		kAdd      // LabelLink's plus in a filled square, for a dropdown that adds what is chosen
 	};
 
 	struct FieldStyle
@@ -618,7 +619,7 @@ namespace Theme
 		FieldIcon  icon = FieldIcon::kNone;
 		bool       previewIsHint = false;  // dropdowns: the preview is greyed, as an empty text field's hint
 		bool       alignRight = false;     // dropdowns: the preview's text ends 6px short of the arrow
-		bool       filled = false;         // dropdowns: Vanilla's and Nordic's underlined field has the palette's stripe colour behind it
+		bool       filled = false;         // dropdowns: Vanilla's and Nordic's underlined field has the palette's stripe colour behind it, and the frame padding left of its text and right of its arrow
 	};
 
 	// Height of a field of this style in the current font (pixels on the back buffer).

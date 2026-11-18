@@ -91,7 +91,7 @@ namespace
 		{ L"Label", &Theme::Palette::label, kAllSkins, L"Field and column labels, list headings, links and greyed text." },
 		{ L"Emphasis", &Theme::Palette::emphasis, kAllSkins, L"Names inside greyed text or a link: this colour under the mouse, a little darker otherwise." },
 		{ L"Accent", &Theme::Palette::accent, kAllSkins,
-			L"Ticks, a selected row's rule, a link or label under the mouse, the dropdown arrow, the frame of a field that narrows a list.",
+			L"Ticks, a selected row's rule, the dropdown arrow, the frame of a field that narrows a list.",
 			L"The arrow at a selected row, ticks, and in Nordic the corner knots, the heading and tab ropes and the button frames." },
 		{ L"AccentLight", &Theme::Palette::accentLight, kModernOnly, L"The text cursor, a scroll bar or slider held." },
 		{ L"Rule", &Theme::Palette::rule, kAllSkins, L"The rules and frames of the window, its fields and lists." },

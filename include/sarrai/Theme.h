@@ -34,7 +34,7 @@ namespace Theme
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
 		std::uint32_t emphasis = 0xF3ECBBFF;     // names inside a line of greyed text or a link, at 0.85 of this until the mouse lights them
-		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, a lit column label or tab, the dropdown arrow, a narrowing field's frame
+		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, the dropdown arrow, a narrowing field's frame
 		std::uint32_t accentLight = 0xD0D3D4FF;  // the text cursor, a scroll bar or slider held
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
 		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
@@ -246,7 +246,7 @@ namespace Theme
 	float ColumnGap();
 
 	// The column labels over a list, in LabelText's font, colour and capitals, each lit
-	// while hovered (the text colour in Vanilla and Nordic, the accent in Modern); the label of
+	// while hovered (the text colour); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. A label starting with "##" is an unnamed column: its arrow alone, centred
 	// on its x, or while unsorted the up arrow over the down one, 2px between their bases,
@@ -676,7 +676,7 @@ namespace Theme
 
 	// One tab of the column at the window's left edge, a square: the icon in the text colour
 	// on the selected row's fill while selected (its corners rounded 2px), else in LabelText's
-	// grey and lit while hovered (the text colour in Vanilla and Nordic, the accent in Modern), with
+	// grey and lit while hovered (the text colour), with
 	// `name` as a tooltip. Returns true when clicked. Faded and
 	// inert inside BeginDisabled.
 	// Contract: `name` is the ImGui ID.

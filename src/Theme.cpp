@@ -2815,23 +2815,14 @@ namespace
 
 	constexpr float kLinkIconGap = 2.0f;  // pixels at 1080p, either side of a label link's icon, whose drawing keeps its own margin
 
-	// LabelText's grey, or the lit colour while hovered: the text colour in every skin.
+	// A link's, column label's or tab icon's: LabelText's grey, or the lit colour while hovered,
+	// the text colour in every skin.
 	ImU32 LinkColor(bool a_hovered)
 	{
 		if (!a_hovered) {
 			return ImGui::GetColorU32(LabelGrey());
 		}
 		return ImGui::GetColorU32(ImGuiCol_Text);
-	}
-
-	// A column label's or tab icon's: LabelText's grey, or while hovered the accent in Modern,
-	// the text colour in Vanilla and Nordic.
-	ImU32 HoverColor(bool a_hovered)
-	{
-		if (!a_hovered) {
-			return ImGui::GetColorU32(LabelGrey());
-		}
-		return ImGui::GetColorU32(g_skin == Theme::Skin::kModern ? ImGuiCol_CheckMark : ImGuiCol_Text);
 	}
 
 	// A link's click area at the cursor, `a_size` (screen pixels, at least 1 each way), with
@@ -3785,7 +3776,7 @@ namespace Theme
 				clicked = static_cast<int>(i);
 			}
 			const bool   hovered = ImGui::IsItemHovered();
-			const ImU32  color = HoverColor(hovered);
+			const ImU32  color = LinkColor(hovered);
 			const ImVec2 pos = ImGui::GetItemRectMin();
 			if (unnamed && hovered && a_unnamedTip) {
 				Theme::Tooltip(a_unnamedTip);
@@ -3874,7 +3865,7 @@ namespace Theme
 		const bool   clicked = ImGui::InvisibleButton(a_name, ImVec2(side, side), ImGuiButtonFlags_EnableNav);
 		const bool   hovered = ImGui::IsItemHovered();
 		auto*        draw = ImGui::GetWindowDrawList();
-		ImU32        color = HoverColor(hovered);
+		ImU32        color = LinkColor(hovered);
 		if (a_selected) {
 			const float rounding = g_skin == Skin::kModern ? ImGui::GetStyle().FrameRounding : kSquareRounding * g_scale;
 			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), rounding);

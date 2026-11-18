@@ -34,7 +34,7 @@ namespace Theme
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
 		std::uint32_t emphasis = 0xF3ECBBFF;     // names inside a line of greyed text or a link, at 0.85 of this until the mouse lights them
-		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
+		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, a lit column label or tab, the dropdown arrow, a narrowing field's frame
 		std::uint32_t accentLight = 0xD0D3D4FF;  // the text cursor, a scroll bar or slider held
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
 		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
@@ -129,10 +129,11 @@ namespace Theme
 	// A clickable label at the right end of the line just laid out (call it
 	// right after CountText): a filled rounded square with a plus cut out of
 	// it, then `label`, both in CountText's font and colour, lit while hovered
-	// (the text colour in Vanilla and Nordic, the accent in Modern). Returns true when clicked.
+	// (the text colour). Returns true when clicked.
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// `line` kNext starts a line of its own under the item just laid out, 4px further down, for
-	// a second link or one under a list. `icon` (a
+	// a second link or one under a list; kNextLeft is that line with the link at its left end,
+	// where the cursor is, and the item spacing below it, not a label's. `icon` (a
 	// HeadingIcon, below) and `afterIcon` follow the label, for an icon inside the words:
 	// "[+] Add from <icon> Wardrobe...", the icon a square of the plus's side, 1px lines at 1080p.
 	// Those two are in the palette's emphasis, at 0.85 of it until hovered.
@@ -141,7 +142,8 @@ namespace Theme
 	enum class LinkLine
 	{
 		kSame,
-		kNext
+		kNext,
+		kNextLeft
 	};
 	enum class HeadingIcon;
 	bool LabelLink(const char* label, LinkLine line = LinkLine::kSame, HeadingIcon icon = {}, const char* afterIcon = nullptr);
@@ -166,6 +168,12 @@ namespace Theme
 	// LineHelpLink without the "(?)": `label` alone at the line's right end, lit while hovered.
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLink(const char* label);
+
+	// LineLink on a label's line (call it right after LabelText or LabelHelpMark): `label` at
+	// the line's right end, its capitals level with the label's in every skin; the line keeps
+	// the item spacing below it.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LabelLineLink(const char* label);
 
 	// Width LineHelpLink(label) takes, so a caller can keep room for it beside a centred row.
 	float LineHelpLinkWidth(const char* label);
@@ -610,6 +618,7 @@ namespace Theme
 		FieldIcon  icon = FieldIcon::kNone;
 		bool       previewIsHint = false;  // dropdowns: the preview is greyed, as an empty text field's hint
 		bool       alignRight = false;     // dropdowns: the preview's text ends 6px short of the arrow
+		bool       filled = false;         // dropdowns: Vanilla's and Nordic's underlined field has the palette's stripe colour behind it
 	};
 
 	// Height of a field of this style in the current font (pixels on the back buffer).

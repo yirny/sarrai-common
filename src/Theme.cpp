@@ -1817,7 +1817,8 @@ namespace
 	// What a field of this style is laid out and drawn with; the border colour
 	// is also the one its dropdown popup opens with. A field without a frame
 	// has square corners and no fill, except the selected rows' fill while
-	// highlighted. Undo with PopFieldStyle.
+	// highlighted and, underlined, the palette's stripe colour when the style
+	// asks for it (FieldStyle::filled). Undo with PopFieldStyle.
 	PushedStyle PushFieldStyle(const Theme::FieldStyle& a_style)
 	{
 		const bool  boxed = a_style.shape == Theme::FieldShape::kBoxed;
@@ -1828,7 +1829,12 @@ namespace
 		if (!boxed) {
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
-			const ImVec4 fill = a_style.look == Theme::FieldLook::kHighlighted ? ImGui::GetStyleColorVec4(ImGuiCol_Header) : ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+			ImVec4 fill(0.0f, 0.0f, 0.0f, 0.0f);
+			if (a_style.look == Theme::FieldLook::kHighlighted) {
+				fill = ImGui::GetStyleColorVec4(ImGuiCol_Header);
+			} else if (a_style.filled && a_style.shape == Theme::FieldShape::kUnderlined) {
+				fill = ImGui::ColorConvertU32ToFloat4(PaletteColor(g_palette.stripe));
+			}
 			for (const auto col : { ImGuiCol_FrameBg, ImGuiCol_FrameBgHovered, ImGuiCol_FrameBgActive }) {
 				ImGui::PushStyleColor(col, fill);
 			}
@@ -2792,11 +2798,20 @@ namespace
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - LabelGapTrim())));
 	}
 
-	// LabelText's grey, or the lit colour while hovered: the accent in Modern, the text
-	// colour in Vanilla and Nordic.
 	constexpr float kLinkIconGap = 2.0f;  // pixels at 1080p, either side of a label link's icon, whose drawing keeps its own margin
 
+	// LabelText's grey, or the lit colour while hovered: the text colour in every skin.
 	ImU32 LinkColor(bool a_hovered)
+	{
+		if (!a_hovered) {
+			return ImGui::GetColorU32(LabelGrey());
+		}
+		return ImGui::GetColorU32(ImGuiCol_Text);
+	}
+
+	// A column label's or tab icon's: LabelText's grey, or while hovered the accent in Modern,
+	// the text colour in Vanilla and Nordic.
+	ImU32 HoverColor(bool a_hovered)
 	{
 		if (!a_hovered) {
 			return ImGui::GetColorU32(LabelGrey());
@@ -3495,16 +3510,23 @@ namespace Theme
 		const float  side = ImGui::GetFontSize();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 
-		if (a_line == LinkLine::kNext) {
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kNextLineGap * g_scale);
-		} else {
+		const bool atLeft = a_line == LinkLine::kNextLeft;
+		if (a_line == LinkLine::kSame) {
 			ImGui::SameLine();
+		} else {
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kNextLineGap * g_scale);
 		}
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		if (!atLeft) {
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		}
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		PushLabelSpacing();  // the line's gap below stays LabelText's
+		if (!atLeft) {
+			PushLabelSpacing();  // the line's gap below stays LabelText's
+		}
 		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)), ImGuiButtonFlags_EnableNav);
-		ImGui::PopStyleVar();
+		if (!atLeft) {
+			ImGui::PopStyleVar();
+		}
 
 		const bool  hovered = ImGui::IsItemHovered();
 		const ImU32 color = LinkColor(hovered);
@@ -3585,6 +3607,29 @@ namespace Theme
 	bool LineLink(const char* a_label)
 	{
 		return RightEndHelpLink(a_label, nullptr, false);
+	}
+
+	// Placed from the label's own top, never the line's height: what was laid out before the
+	// label may have left the line taller than it (a combo's preview does), and the two fonts
+	// differ in Nordic. Whole pixels, as text is drawn from one, so the two never part by a
+	// pixel from line to line. The click area reaches down as far as a link at the label's top
+	// would, so the line is as tall as with LineLink.
+	bool LabelLineLink(const char* a_label)
+	{
+		PushLabelFont();
+		const float labelCaps = CapsMiddle();
+		ImGui::PopFont();
+		PushSmallFont();
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const float  rise = (std::max)(0.0f, std::round(CapsMiddle() - labelCaps));  // the link's top above the label's
+
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - text.x));
+		const ImVec2 lineTop = ImGui::GetCursorScreenPos();
+		ImGui::SetCursorScreenPos(ImVec2(lineTop.x, std::floor(lineTop.y) - rise));
+		const bool clicked = LinkButton(a_label, ImVec2(text.x, text.y + rise));
+		ImGui::PopFont();
+		return clicked;
 	}
 
 	float LineHelpLinkWidth(const char* a_label)
@@ -3725,7 +3770,7 @@ namespace Theme
 				clicked = static_cast<int>(i);
 			}
 			const bool   hovered = ImGui::IsItemHovered();
-			const ImU32  color = LinkColor(hovered);
+			const ImU32  color = HoverColor(hovered);
 			const ImVec2 pos = ImGui::GetItemRectMin();
 			if (unnamed && hovered && a_unnamedTip) {
 				Theme::Tooltip(a_unnamedTip);
@@ -3814,7 +3859,7 @@ namespace Theme
 		const bool   clicked = ImGui::InvisibleButton(a_name, ImVec2(side, side), ImGuiButtonFlags_EnableNav);
 		const bool   hovered = ImGui::IsItemHovered();
 		auto*        draw = ImGui::GetWindowDrawList();
-		ImU32        color = LinkColor(hovered);
+		ImU32        color = HoverColor(hovered);
 		if (a_selected) {
 			const float rounding = g_skin == Skin::kModern ? ImGui::GetStyle().FrameRounding : kSquareRounding * g_scale;
 			draw->AddRectFilled(topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImGui::GetColorU32(ImGuiCol_Header), rounding);

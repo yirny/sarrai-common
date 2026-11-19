@@ -63,7 +63,8 @@ namespace FreeCamera
 	// from first person switches to third person first: first person does not
 	// draw their body. Begin then shows their third-person model, which the switch
 	// does not show in the same frame, and End hides it again as it goes back to
-	// first person. With `startFromFirstPerson` the camera instead switches to
+	// first person; the camera starts behind them, level, rather than where third
+	// person last left it. With `startFromFirstPerson` the camera instead switches to
 	// first person and starts at the player's eyes, looking where they look,
 	// whoever `actor` is. A left drag turns around `actor` unless Move is asked to turn in place.
 	bool Begin(RE::Actor& actor, bool startFromFirstPerson = false);

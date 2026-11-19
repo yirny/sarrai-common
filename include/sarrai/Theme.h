@@ -41,6 +41,7 @@ namespace Theme
 		std::uint32_t selected = 0x2A2D2EFF;     // a selected row, the selected tab, a narrowing field's fill
 		std::uint32_t stripe = 0x00000020;       // every second outfit row, laid over it
 		std::uint32_t error = 0xFF6666FF;        // error text and fields
+		std::uint32_t positive = 0xB7DA7BFF;     // a condition that is met now
 	};
 
 	// A row icon's PNG: a white image, tinted as it is drawn. The key names it to TickRow,
@@ -376,15 +377,17 @@ namespace Theme
 	// Contract: the texts are shown as they are.
 	void RunTextWrapped(std::span<const SubtitleRun> parts);
 
-	// A part of RunLinks' text: a link, or what sits between links (a comma, a full stop).
+	// A part of RunLinks' text: a link, or what sits between links (a comma, a full stop); its
+	// colour packed as ImGui's ImU32, 0 for the text colour.
 	struct LinkRun
 	{
 		const char* text;
 		bool        link = true;
+		unsigned    color = 0;
 	};
 
-	// Body text made of `runs`, wrapped to the content width as TextWrapped wraps it, in the
-	// text colour; a link run under the mouse is the one hovered, and with `lit` it is drawn
+	// Body text made of `runs`, wrapped to the content width as TextWrapped wraps it, each run
+	// in its colour; a link run under the mouse is the one hovered, and with `lit` it is drawn
 	// in LinkColor's lit colour and underlined. Returns the index of the link run clicked, or
 	// -1; `hovered` (if any) gets the one hovered, or -1. Not reached by keyboard or
 	// controller navigation, so whatever a click does needs another way in.
@@ -631,6 +634,9 @@ namespace Theme
 
 	// The red of error text and fields, packed as ImGui's ImU32.
 	unsigned ErrorColor();
+
+	// The green of what is met now (a condition), packed as ImGui's ImU32.
+	unsigned PositiveColor();
 
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo

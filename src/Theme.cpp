@@ -3376,7 +3376,8 @@ namespace Theme
 		LayOutLinkRuns(a_runs, text, wrapWidth, [&](std::size_t a_run, const char* a_begin, const char* a_end, ImVec2 a_offset, float a_width) {
 			const ImVec2 at(origin.x + a_offset.x, origin.y + a_offset.y);
 			const bool   on = a_lit && static_cast<int>(a_run) == hovered;
-			draw->AddText(at, on ? lit : plain, a_begin, a_end);
+			const ImU32  own = a_runs[a_run].color != 0 ? ImGui::GetColorU32(a_runs[a_run].color) : plain;  // the style alpha applied, as to the text colour
+			draw->AddText(at, on ? lit : own, a_begin, a_end);
 			if (on) {
 				draw->AddRectFilled(ImVec2(at.x, at.y + underlineY), ImVec2(at.x + a_width, at.y + underlineY + thick), lit);
 			}
@@ -4039,6 +4040,11 @@ namespace Theme
 	unsigned ErrorColor()
 	{
 		return ErrorRed();
+	}
+
+	unsigned PositiveColor()
+	{
+		return PaletteColor(g_palette.positive);
 	}
 
 	bool BeginCombo(const char* a_id, int a_flags, const FieldStyle& a_style)

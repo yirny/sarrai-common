@@ -6,7 +6,7 @@
 //   Helpers    - free camera fields, the third person state, the toggle that
 //                keeps the control switches, the first / third person switch
 //                and its way back, the player's body shown for the free camera and
-//                hidden again, the start at the player's eyes, the limit clamps,
+//                hidden again, the start at the player's eyes or behind them, the limit clamps,
 //                a frame of the sideways glide and of the wheel's ease
 //   API        - Begin / Move / CentreSideways / Gliding / End
 //
@@ -38,6 +38,8 @@ namespace
 	constexpr float kZoomEaseSeconds = 0.06f;       // of an eased wheel step, the time for the rest of it to fall to 37%
 	constexpr float kZoomDoneUnits = 0.05f;         // what is left of an eased wheel step when it counts as finished
 	constexpr float kMaxPitch = 89.0f * std::numbers::pi_v<float> / 180.0f;
+	constexpr float kStartBehindUnits = 150.0f;  // from the player to a camera started behind them (StartBehindPlayer)
+	constexpr float kStartHeightShare = 0.9f;    // of the player's height, where that camera starts
 
 	// --- State ----------------------------------------------------------------
 
@@ -281,6 +283,20 @@ namespace
 		}
 	}
 
+	// Puts the free camera behind the player, level, facing where they face. Set here after a
+	// switch from first person made in the same frame: the free camera's own start is then
+	// where third person last left the camera (seen in game: as far off as the player had
+	// walked in first person since, and after a load the place the save holds).
+	void StartBehindPlayer(RE::FreeCameraState& free, RE::Actor& player)
+	{
+		const float        heading = player.GetAngleZ();
+		const RE::NiPoint3 level{ std::sin(heading), std::cos(heading), 0.0f };  // Move's horizontal facing
+		free.translation = player.GetPosition() - level * kStartBehindUnits;
+		free.translation.z += player.GetHeight() * kStartHeightShare;
+		free.rotation.y = heading;
+		free.rotation.x = 0.0f;
+	}
+
 	// Pulls a place that has left the limits back onto them. A zero limit is not applied.
 	void ClampToAnchor(RE::NiPoint3& place, const RE::NiPoint3& anchor, FreeCamera::MoveLimits limits)
 	{
@@ -410,6 +426,8 @@ namespace FreeCamera
 		}
 		if (startFromFirstPerson) {
 			StartAtEyes(*free);
+		} else if (session.forcedThirdPerson) {
+			StartBehindPlayer(*free, actor);
 		}
 		if (session.forcedThirdPerson) {
 			session.shownBody = ShowPlayerBody();

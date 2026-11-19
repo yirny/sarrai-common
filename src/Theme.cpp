@@ -2778,8 +2778,8 @@ namespace
 	// put it (pixels on the back buffer).
 	float LabelGapTrim()
 	{
-		constexpr float kModernTrim = 3.0f;  // pixels at 1080p
-		constexpr float kSquareTrim = 5.0f;  // Vanilla and Nordic, pixels at 1080p
+		constexpr float kModernTrim = 2.0f;  // pixels at 1080p
+		constexpr float kSquareTrim = 1.0f;  // Vanilla and Nordic, pixels at 1080p
 
 		return (g_skin == Theme::Skin::kModern ? kModernTrim : kSquareTrim) * g_scale;
 	}

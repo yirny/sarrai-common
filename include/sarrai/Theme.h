@@ -513,12 +513,14 @@ namespace Theme
 	// with a tooltip while the mouse is over it: a dressed form for the outfit the actor
 	// wears now (`Current outfit`, and `Default Outfit` on a second line when it is their
 	// Default too), else a bare form for their Default (`Default Outfit`); a star for one
-	// chosen for a situation (`situations` is its tooltip, `For Town, Warm`; null for none).
+	// chosen for a situation (`situations` is its tooltip, `For Town, Warm`; null for none); a
+	// warning mark in the error colour nearest the name (`warning` is its tooltip; null for none).
 	struct OutfitMarks
 	{
 		bool        current = false;
 		bool        defaultOutfit = false;  // the actor's Default holds it
 		const char* situations = nullptr;
+		const char* warning = nullptr;
 	};
 
 	// A row with the outfit's name, ending in an ellipsis short of `marks`, after its `icon`

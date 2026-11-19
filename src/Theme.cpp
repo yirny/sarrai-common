@@ -2656,34 +2656,51 @@ namespace
 		return a_marks.defaultOutfit ? g_currentAndDefault.c_str() : g_texts.currentOutfit;
 	}
 
+	// The tooltips of an outfit row's marks (Theme::OutfitMarks) from the right, as
+	// DrawOutfitMarks draws them: the star's, the form mark's (HasFormMark), the warning's.
+	// Returns how many there are.
+	int OutfitMarkTooltips(const Theme::OutfitMarks& a_marks, std::array<const char*, 3>& a_tooltips)
+	{
+		int count = 0;
+		if (a_marks.situations) {
+			a_tooltips[count++] = a_marks.situations;
+		}
+		if (HasFormMark(a_marks)) {
+			a_tooltips[count++] = FormMarkTooltip(a_marks);
+		}
+		if (a_marks.warning) {
+			a_tooltips[count++] = a_marks.warning;
+		}
+		return count;
+	}
+
 	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
 	// square of the text height, from the right: the star of an outfit chosen for a
 	// situation, then the form mark (HasFormMark), dressed for the current outfit, bare for
-	// the Default worn not now. Returns how many are drawn.
-	int DrawOutfitMarks(ImDrawList* a_draw, ImVec2 a_right, const Theme::OutfitMarks& a_marks, ImU32 a_color, float a_thick)
+	// the Default worn not now, in `a_color`; then the warning in the error colour.
+	void DrawOutfitMarks(ImDrawList* a_draw, ImVec2 a_right, const Theme::OutfitMarks& a_marks, ImU32 a_color, float a_thick)
 	{
 		const float side = ImGui::GetTextLineHeight();
 		float       x = a_right.x;
-		int         drawn = 0;
-		const auto  draw = [&](bool a_on, void (*a_icon)(ImDrawList*, const IconFrame&, ImU32, float)) {
+		const auto  draw = [&](bool a_on, void (*a_icon)(ImDrawList*, const IconFrame&, ImU32, float), ImU32 a_iconColor) {
 			if (!a_on) {
 				return;
 			}
 			x -= side;
-			a_icon(a_draw, IconFrame{ ImVec2(x, a_right.y - side * 0.5f), side }, a_color, a_thick);
+			a_icon(a_draw, IconFrame{ ImVec2(x, a_right.y - side * 0.5f), side }, a_iconColor, a_thick);
 			x -= kOutfitMarkGap * g_scale;
-			++drawn;
 		};
-		draw(a_marks.situations != nullptr, DrawStarIcon);
-		draw(a_marks.current, DrawDressedFormIcon);
-		draw(!a_marks.current && a_marks.defaultOutfit, DrawDressFormIcon);
-		return drawn;
+		draw(a_marks.situations != nullptr, DrawStarIcon, a_color);
+		draw(a_marks.current, DrawDressedFormIcon, a_color);
+		draw(!a_marks.current && a_marks.defaultOutfit, DrawDressFormIcon, a_color);
+		draw(a_marks.warning != nullptr, DrawWarningIcon, ErrorRed());
 	}
 
 	// The width the marks take at the row's right end, the gap to the name included.
 	float OutfitMarksWidth(const Theme::OutfitMarks& a_marks)
 	{
-		const int count = (HasFormMark(a_marks) ? 1 : 0) + (a_marks.situations ? 1 : 0);
+		std::array<const char*, 3> tooltips{};
+		const int                  count = OutfitMarkTooltips(a_marks, tooltips);
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
 	}
 
@@ -4668,7 +4685,7 @@ namespace Theme
 		const float  side = ImGui::GetTextLineHeight();
 		const float  marksRight = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
 		const ImVec2 markCentre(marksRight, textY + side * 0.5f);
-		const int    marks = DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
+		DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
 		const float  nameRight = marksRight - OutfitMarksWidth(a_marks);
 		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
@@ -4677,12 +4694,12 @@ namespace Theme
 		} else if (nameRight > nameX) {
 			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
+		std::array<const char*, 3> tooltips{};
+		const int                  marks = OutfitMarkTooltips(a_marks, tooltips);
 		for (int i = 0; i < marks; ++i) {
 			const float right = marksRight - static_cast<float>(i) * (side + kOutfitMarkGap * g_scale);
 			if (ImGui::IsMouseHoveringRect(ImVec2(right - side, textY), ImVec2(right, textY + side))) {
-				// From the right: the star first when both are drawn, the form mark last.
-				const bool star = a_marks.situations && i == 0;
-				Theme::Tooltip(star ? a_marks.situations : FormMarkTooltip(a_marks));
+				Theme::Tooltip(tooltips[static_cast<std::size_t>(i)]);
 			}
 		}
 		return row.pressed;

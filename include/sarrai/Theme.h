@@ -170,6 +170,11 @@ namespace Theme
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLink(const char* label);
 
+	// LineLink at the line's left end, where its first item would start, whatever the line holds
+	// already: call it after the line's other items, as a centred button row's.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LeftLineLink(const char* label);
+
 	// LineLink on a label's line (call it right after LabelText or LabelHelpMark): `label` at
 	// the line's right end, its capitals level with the label's in every skin; the line keeps
 	// the item spacing below it.

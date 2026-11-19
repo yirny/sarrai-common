@@ -3569,9 +3569,10 @@ namespace Theme
 
 	// LabelLink's place and lighting with no plus mark, the help mark inside the click area:
 	// on a label's line (`a_labelLine`) at its top, keeping its gap below; on a control's
-	// line centred on the line's height, keeping the control's gap. At the line's right end.
-	// With `a_hovered` null, no help mark.
-	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine)
+	// line centred on the line's height, keeping the control's gap. At the line's right end, or
+	// with `a_left` at its left end, where ImGui starts a line's first item, whatever the line
+	// holds already. With `a_hovered` null, no help mark.
+	bool LineEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine, bool a_left = false)
 	{
 		PushSmallFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -3580,7 +3581,12 @@ namespace Theme
 		const float  width = help ? markX + ImGui::CalcTextSize(kHelpMark).x : text.x;
 
 		ImGui::SameLine();
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		if (a_left) {
+			const auto* window = ImGui::GetCurrentWindow();
+			ImGui::SetCursorScreenPos(ImVec2(std::floor(window->Pos.x + window->DC.Indent.x + window->DC.ColumnsOffset.x), window->DC.CursorPos.y));
+		} else {
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		}
 		if (!a_labelLine) {
 			// After SameLine the current line's size is the size of what is on it so far.
 			const float lineHeight = ImGui::GetCurrentWindow()->DC.CurrLineSize.y;
@@ -3603,17 +3609,22 @@ namespace Theme
 
 	bool LabelHelpLink(const char* a_label, bool* a_hovered)
 	{
-		return RightEndHelpLink(a_label, a_hovered, true);
+		return LineEndHelpLink(a_label, a_hovered, true);
 	}
 
 	bool LineHelpLink(const char* a_label, bool* a_hovered)
 	{
-		return RightEndHelpLink(a_label, a_hovered, false);
+		return LineEndHelpLink(a_label, a_hovered, false);
 	}
 
 	bool LineLink(const char* a_label)
 	{
-		return RightEndHelpLink(a_label, nullptr, false);
+		return LineEndHelpLink(a_label, nullptr, false);
+	}
+
+	bool LeftLineLink(const char* a_label)
+	{
+		return LineEndHelpLink(a_label, nullptr, false, true);
 	}
 
 	// Placed from the label's own top, never the line's height: what was laid out before the

@@ -1368,7 +1368,7 @@ namespace
 		return fillRight - kScrollbarGap * g_scale;
 	}
 
-	ListRow LayOutListRow(const char* a_label, float a_height)
+	ListRow LayOutListRow(const char* a_label, float a_height, ImGuiButtonFlags a_flags = ImGuiButtonFlags_EnableNav)
 	{
 		const ImVec2 cursor = ImGui::GetCursorScreenPos();
 		const float  left = ImGui::GetWindowPos().x;
@@ -1378,7 +1378,7 @@ namespace
 		const float  fillRight = RowFillRight(left, right);
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
 		ListRow row{ ImVec2(left, cursor.y), ImVec2(right, bottom), ImVec2(fillLeft, cursor.y), ImVec2(fillRight, bottom), cursor.x - left, false, false };
-		row.pressed = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, right - left), a_height), ImGuiButtonFlags_EnableNav);
+		row.pressed = ImGui::InvisibleButton(a_label, ImVec2((std::max)(1.0f, right - left), a_height), a_flags);
 		row.hovered = ImGui::IsItemHovered();
 		return row;
 	}
@@ -1500,6 +1500,18 @@ namespace
 		if (a_hovered && (!a_selected || g_skin == Theme::Skin::kNordic)) {
 			DrawRowHover(a_draw, a_min, a_max, a_rounding);
 		}
+	}
+
+	// A ×'s two strokes centred on `a_centre` (screen pixels), as wide as the font size asks.
+	void DrawCross(ImDrawList* a_draw, ImVec2 a_centre, ImU32 a_color)
+	{
+		constexpr float kCrossRatio = 0.22f;  // half the cross's width, of the font size
+		constexpr float kLineWidth = 1.0f;    // pixels at 1080p, as the field icons'
+
+		const float half = ImGui::GetFontSize() * kCrossRatio;
+		const float thickness = (std::max)(1.0f, kLineWidth * g_scale);
+		a_draw->AddLine(ImVec2(a_centre.x - half, a_centre.y - half), ImVec2(a_centre.x + half, a_centre.y + half), a_color, thickness);
+		a_draw->AddLine(ImVec2(a_centre.x - half, a_centre.y + half), ImVec2(a_centre.x + half, a_centre.y - half), a_color, thickness);
 	}
 
 	// NORDIC UI's MCM page arrow, which marks a selected row in Vanilla and Nordic, at its size
@@ -2542,15 +2554,52 @@ namespace
 		}
 	}
 
-	// A warning: a circle with an exclamation mark in it, a stroke from above the middle and a dot
-	// below it, on the centre column (IconFrame::Pixel), so it stays crisp.
-	void DrawWarningIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float a_thick)
+	// After a caution sign icon on Flaticon (Premium licence).
+	// A warning: a filled triangle, point up, its corners round, with an exclamation mark in it:
+	// a bar narrowing downwards over a dot. A fill cannot have a hole, so the mark is drawn over
+	// the triangle in the window's colour. Points are in the source's 30 square, y down, x from
+	// its centre line; the left half mirrors the right one.
+	void DrawWarningIcon(ImDrawList* a_draw, const IconFrame& a_frame, ImU32 a_color, float)
 	{
-		const ImVec2 centre = a_frame.Pixel(0.50f, 0.50f);
-		a_draw->PathArcTo(centre, a_frame.side * 0.5f - a_thick * 0.5f, 0.0f, 2.0f * IM_PI);
-		a_draw->PathStroke(a_color, ImDrawFlags_Closed, a_thick);
-		StrokeLine(a_draw, a_frame.Pixel(0.50f, 0.24f), a_frame.Pixel(0.50f, 0.58f), a_color, a_thick);
-		a_draw->AddCircleFilled(a_frame.Pixel(0.50f, 0.75f), (std::max)(1.0f, 0.06f * a_frame.side), a_color);
+		constexpr float  kSource = 30.0f;  // the source's square
+		constexpr ImVec2 kApex{ 0.0f, 3.855f };
+		constexpr ImVec2 kSideTop{ 2.880f, 5.555f };  // the right side's straight run
+		constexpr ImVec2 kSideBottom{ 11.583f, 21.245f };
+		// The right half's corners as cubic curves: the apex's two control points, from the apex
+		// to the side; the base corner's two curves (control, control, end), from the side round
+		// to the base.
+		constexpr std::array<ImVec2, 2> kApexCurve{ { { 1.220f, 3.855f }, { 2.290f, 4.495f } } };
+		constexpr std::array<ImVec2, 6> kBaseCurve{ { { 12.153f, 22.275f }, { 12.143f, 23.495f }, { 11.543f, 24.515f }, { 10.943f, 25.535f },
+			{ 9.873f, 26.145f }, { 8.693f, 26.145f } } };
+		constexpr ImVec2                kBarShoulder{ 0.52f, 11.69f };  // the centre of the bar's upper right corner
+		constexpr float                 kBarShoulderRadius = 1.45f;
+		constexpr ImVec2                kBarFoot{ 0.0f, 16.85f };  // the centre of the bar's round lower end
+		constexpr float                 kBarFootRadius = 1.36f;
+		constexpr ImVec2                kDot{ 0.0f, 21.205f };
+		constexpr float                 kDotRadius = 1.5f;
+
+		const float unit = a_frame.side / kSource;
+		const auto  at = [&](ImVec2 a_point, float a_half) { return a_frame.Curve(0.5f + a_half * a_point.x / kSource, a_point.y / kSource); };
+		// Clockwise on screen, as ImGui's anti-aliased fill needs, from the right side's lower end
+		// and back to its upper one: no point twice.
+		a_draw->PathLineTo(at(kSideBottom, 1.0f));
+		a_draw->PathBezierCubicCurveTo(at(kBaseCurve[0], 1.0f), at(kBaseCurve[1], 1.0f), at(kBaseCurve[2], 1.0f));
+		a_draw->PathBezierCubicCurveTo(at(kBaseCurve[3], 1.0f), at(kBaseCurve[4], 1.0f), at(kBaseCurve[5], 1.0f));
+		a_draw->PathLineTo(at(kBaseCurve[5], -1.0f));
+		a_draw->PathBezierCubicCurveTo(at(kBaseCurve[4], -1.0f), at(kBaseCurve[3], -1.0f), at(kBaseCurve[2], -1.0f));
+		a_draw->PathBezierCubicCurveTo(at(kBaseCurve[1], -1.0f), at(kBaseCurve[0], -1.0f), at(kSideBottom, -1.0f));
+		a_draw->PathLineTo(at(kSideTop, -1.0f));
+		a_draw->PathBezierCubicCurveTo(at(kApexCurve[1], -1.0f), at(kApexCurve[0], -1.0f), at(kApex, 1.0f));
+		a_draw->PathBezierCubicCurveTo(at(kApexCurve[0], 1.0f), at(kApexCurve[1], 1.0f), at(kSideTop, 1.0f));
+		a_draw->PathFillConvex(a_color);
+
+		// The mark, as see-through as the triangle (a faded row's).
+		const ImU32 mark = WithAlpha(ImGui::GetColorU32(ImGuiCol_WindowBg), (a_color >> IM_COL32_A_SHIFT) & 0xFF);
+		a_draw->PathArcTo(at(kBarShoulder, 1.0f), kBarShoulderRadius * unit, -0.5f * IM_PI, 0.0f);
+		a_draw->PathArcTo(at(kBarFoot, 1.0f), kBarFootRadius * unit, 0.0f, IM_PI);
+		a_draw->PathArcTo(at(kBarShoulder, -1.0f), kBarShoulderRadius * unit, IM_PI, 1.5f * IM_PI);
+		a_draw->PathFillConvex(mark);
+		a_draw->AddCircleFilled(at(kDot, 1.0f), (std::max)(1.0f, kDotRadius * unit), mark);
 	}
 
 	// The radius of a drag grip's dots on the back buffer.
@@ -4200,18 +4249,10 @@ namespace Theme
 
 	bool ClearButton(const char* a_id, float a_side)
 	{
-		constexpr float kCrossRatio = 0.22f;  // half the cross's width, of the font size
-		constexpr float kLineWidth = 1.0f;    // pixels at 1080p, as the field icons'
-
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
 		const bool   clicked = ImGui::InvisibleButton(a_id, ImVec2(a_side, a_side), ImGuiButtonFlags_EnableNav);
 		const ImU32  color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_Text : ImGuiCol_TextDisabled);
-		const float  half = ImGui::GetFontSize() * kCrossRatio;
-		const float  thickness = (std::max)(1.0f, kLineWidth * g_scale);
-		const ImVec2 centre(topLeft.x + a_side * 0.5f, topLeft.y + a_side * 0.5f);
-		auto*        draw = ImGui::GetWindowDrawList();
-		draw->AddLine(ImVec2(centre.x - half, centre.y - half), ImVec2(centre.x + half, centre.y + half), color, thickness);
-		draw->AddLine(ImVec2(centre.x - half, centre.y + half), ImVec2(centre.x + half, centre.y - half), color, thickness);
+		DrawCross(ImGui::GetWindowDrawList(), ImVec2(topLeft.x + a_side * 0.5f, topLeft.y + a_side * 0.5f), color);
 		return clicked;
 	}
 
@@ -4314,14 +4355,16 @@ namespace Theme
 		return g_skin == Skin::kModern ? kModernListRowGap * g_scale : a_fallback;
 	}
 
-	bool BeginList(const char* a_id, float a_height)
+	bool BeginList(const char* a_id, float a_height, bool a_withinContent)
 	{
 		// Vanilla and Nordic: past the content across the window's padding to its
 		// edges, Vanilla's right one only to its frame's band (DrawVanillaFrame), which a
 		// scrollbar drawn after it would cover; in a table, only on the table's outer sides,
-		// so the gap between columns stays clear. Modern: within the content, as its fields are.
-		const float padding = g_skin == Skin::kModern ? 0.0f : ImGui::GetStyle().WindowPadding.x;
-		const float band = g_skin == Skin::kVanilla ? VanillaBandWidth() : 0.0f;
+		// so the gap between columns stays clear. Modern, and any skin with `a_withinContent`:
+		// within the content, as its fields are.
+		const bool  within = g_skin == Skin::kModern || a_withinContent;
+		const float padding = within ? 0.0f : ImGui::GetStyle().WindowPadding.x;
+		const float band = g_skin == Skin::kVanilla && !within ? VanillaBandWidth() : 0.0f;
 		float       left = padding;
 		float       right = padding - band;
 		if (ImGui::GetCurrentTable()) {
@@ -4398,6 +4441,52 @@ namespace Theme
 			textX += RowIconRoom();
 		}
 		draw->AddText(ImVec2(textX, cursor.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+	}
+
+	bool RemovableRow(const char* a_label, const RemovableRowLook& a_look, RemovableRowPart* a_hovered)
+	{
+		const float height = SelectRowHeight();
+		// The row is no keyboard stop, and the × laid over its right end takes the mouse there.
+		ImGui::SetNextItemAllowOverlap();
+		const ListRow row = LayOutListRow(a_label, height, ImGuiButtonFlags_None);
+		// Contract: the × is on the row's line and as tall as the row, so the next row starts
+		// where it would without it.
+		const ImVec2 crossMin(row.fillMax.x - height, row.min.y);
+		ImGui::SameLine();
+		ImGui::SetCursorScreenPos(crossMin);
+		const bool removed = ImGui::InvisibleButton("##remove", ImVec2(height, height), ImGuiButtonFlags_EnableNav);
+		const bool crossHovered = ImGui::IsItemHovered();
+		const bool rowHovered = row.hovered && !crossHovered;
+
+		auto* draw = ImGui::GetWindowDrawList();
+		if (a_look.striped) {
+			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(PaletteColor(g_palette.stripe)));
+		}
+		DrawRowFills(draw, row.fillMin, row.fillMax, false, rowHovered || crossHovered, 0.0f);
+		if (a_look.greyed) {
+			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+		}
+		float textX = row.min.x + row.inset + RowTextShift();
+		if (a_look.icon) {
+			DrawRowIcon(draw, textX, row.min.y + height * 0.5f, *a_look.icon);
+			textX += RowIconRoom();
+		}
+		const float  textY = row.min.y + kSelectRowPadY * g_scale;
+		const ImVec2 textSize = ImGui::CalcTextSize(a_label);
+		if (textX + textSize.x <= crossMin.x) {
+			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+		} else if (crossMin.x > textX) {
+			ImGui::RenderTextEllipsis(draw, ImVec2(textX, textY), ImVec2(crossMin.x, textY + textSize.y), crossMin.x, a_label, nullptr, &textSize);
+		}
+		if (a_look.greyed) {
+			ImGui::PopStyleColor();
+		}
+		DrawCross(draw, ImVec2(crossMin.x + height * 0.5f, crossMin.y + height * 0.5f), ImGui::GetColorU32(crossHovered ? ImGuiCol_Text : ImGuiCol_TextDisabled));
+		if (a_hovered) {
+			*a_hovered = crossHovered ? RemovableRowPart::kRemove : rowHovered ? RemovableRowPart::kRow :
+			                                                                     RemovableRowPart::kNone;
+		}
+		return removed;
 	}
 
 	void IconText(const char* a_text, const RowIcon& a_icon)

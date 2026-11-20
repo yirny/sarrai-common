@@ -219,9 +219,11 @@ namespace Theme
 	// window's padding to its edges (Vanilla's right one to its frame's band, so a
 	// scrollbar stays off the band; in a table cell, only on the table's outer
 	// sides, never into the gap between columns), and their text keeps that
-	// padding as an indent. Used like
+	// padding as an indent. With `withinContent`, Vanilla's and Nordic's list keeps to the
+	// content as Modern's does: for a list inside a box or a scroll area, short of the
+	// window's edges. Used like
 	// BeginChild / EndChild: always call EndList, before the next BeginList.
-	// Rows go through TickRow, SelectRow or TextRow. Vanilla and Nordic draw the game's scroll
+	// Rows go through TickRow, SelectRow, TextRow or RemovableRow. Vanilla and Nordic draw the game's scroll
 	// bar (arrows at its ends, its track, a thumb in the style's grab colours) over ImGui's,
 	// which still takes the clicks; without its textures, ImGui's own. In every skin the bar
 	// is hidden until a wheel turn over the list, the mouse over the bar or a drag of its thumb
@@ -229,7 +231,7 @@ namespace Theme
 	// the mouse has been out of it for 0.1 s.
 	// Contract: a table holding lists needs ImGuiTableFlags_NoClip, or its
 	// columns clip the outer sides short of the window's edges (Vanilla, Nordic).
-	bool BeginList(const char* id, float height);
+	bool BeginList(const char* id, float height, bool withinContent = false);
 	void EndList();
 
 	// Pixels on the back buffer: the padding between a list's rules and its
@@ -286,7 +288,7 @@ namespace Theme
 		std::string_view key;                // an IconFile's key; "" for none
 		std::uint32_t    rgb = 0;            // the white icon's tint, 0xRRGGBB
 		HeadingIcon      line = {};          // OutfitRow only: this line drawing in the text colour, in place of `key`
-		bool             textColor = false;  // TickRow, SelectRow, TextRow, IconText: tinted with the text colour, not `rgb`
+		bool             textColor = false;  // TickRow, SelectRow, TextRow, RemovableRow, IconText: tinted with the text colour, not `rgb`
 	};
 	struct RowMark
 	{
@@ -325,6 +327,28 @@ namespace Theme
 	// Lay rows out ListRowGap apart.
 	// Contract: inside BeginList.
 	void TextRow(const char* label, const RowIcon* icon = nullptr);
+
+	// A row the user can only remove, SelectRowHeight tall, laid out as TextRow lays out its
+	// icon and text, the text ending in an ellipsis short of a × at the row's right end, in a
+	// square of the row's height: greyed, lit while hovered. Returns true when the × is
+	// pressed; a click on the rest of the row does nothing, and only the × takes the keyboard
+	// focus. The row gets the tick row's hover fill while the mouse is over any of it;
+	// `hovered` (if any) is set to the part under the mouse, for the caller's tooltips.
+	// Contract: inside BeginList, laid out with no item spacing, so the stripes meet; the label
+	// is shown as is and is the row's ImGui ID, so PushID around rows whose labels may repeat.
+	struct RemovableRowLook
+	{
+		bool           striped = false;  // the palette's stripe colour under it, as every second outfit row has
+		bool           greyed = false;   // the icon and the text in the greyed text's colour
+		const RowIcon* icon = nullptr;
+	};
+	enum class RemovableRowPart
+	{
+		kNone,
+		kRow,    // the row, left of the ×
+		kRemove  // the ×
+	};
+	bool RemovableRow(const char* label, const RemovableRowLook& look = {}, RemovableRowPart* hovered = nullptr);
 
 	// A line of text after `icon`, drawn the text's height square (as an outfit row's icon) and
 	// 6px before it, outside a list; one item, the icon included. The text starts that far in
@@ -481,8 +505,8 @@ namespace Theme
 		// The name's and the icon's colour, packed as ImGui's ImU32 (the style alpha applied);
 		// 0 for the text colour. `alert` wins over it, it over `dim`.
 		unsigned nameColor = 0;
-		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
-		// mark, a square 4px short of the name's line height. Its tooltip is the caller's:
+		// A warning mark after the name and its count, in ErrorColor: a filled triangle with an
+		// exclamation mark, a square 4px short of the name's line height. Its tooltip is the caller's:
 		// `warningHovered` (if any) is set to whether the mark is hovered, or the part left of the
 		// chevron has the keyboard focus.
 		bool  warning = false;

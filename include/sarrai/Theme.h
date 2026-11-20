@@ -334,12 +334,11 @@ namespace Theme
 	// pressed; a click on the rest of the row does nothing, and only the × takes the keyboard
 	// focus. The row gets the tick row's hover fill while the mouse is over any of it;
 	// `hovered` (if any) is set to the part under the mouse, for the caller's tooltips.
-	// Contract: inside BeginList, laid out with no item spacing, so the stripes meet; the label
-	// is shown as is and is the row's ImGui ID, so PushID around rows whose labels may repeat.
+	// Contract: inside BeginList; the label is shown as is and is the row's ImGui ID, so PushID
+	// around rows whose labels may repeat.
 	struct RemovableRowLook
 	{
-		bool           striped = false;  // the palette's stripe colour under it, as every second outfit row has
-		bool           greyed = false;   // the icon and the text in the greyed text's colour
+		bool           greyed = false;  // the icon and the text in the greyed text's colour
 		const RowIcon* icon = nullptr;
 	};
 	enum class RemovableRowPart

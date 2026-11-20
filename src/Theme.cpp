@@ -4459,9 +4459,6 @@ namespace Theme
 		const bool rowHovered = row.hovered && !crossHovered;
 
 		auto* draw = ImGui::GetWindowDrawList();
-		if (a_look.striped) {
-			draw->AddRectFilled(row.fillMin, row.fillMax, ImGui::GetColorU32(PaletteColor(g_palette.stripe)));
-		}
 		DrawRowFills(draw, row.fillMin, row.fillMax, false, rowHovered || crossHovered, 0.0f);
 		if (a_look.greyed) {
 			ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));

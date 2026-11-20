@@ -4,7 +4,8 @@
 //   Hook targets     - Address Library IDs for D3D init and input dispatch
 //   ImGui lifecycle  - OnD3DInit creates the context on the game's device/window
 //   Frame            - DrawFrame draws the plugin's window once per frame while it is open,
-//                      without the controller keys the Win32 backend reads itself
+//                      at the game's screen size, without the controller keys the Win32
+//                      backend reads itself
 //   Menu             - OverlayMenu: a movie-less game menu; the game shows its own
 //                      cursor over it, and its PostDisplay calls DrawFrame;
 //                      its AdvanceMovie calls Config::advance;
@@ -151,6 +152,21 @@ namespace
 		}
 	}
 
+	// SSE Display Tweaks' BorderlessUpscale spreads the game's window over the monitor but keeps
+	// the back buffer at the game's resolution, which DXGI stretches to the window. The Win32
+	// backend sizes the display by the window, so ImGui drew for the window into the smaller
+	// buffer: the window came out too large, its lower part off the screen. The game's screen
+	// size is the buffer's (SKSE Menu Framework sizes its display by it and shows right), and the
+	// game's cursor that prepareFrame's input feed queues is in it too (seen in game: 960x540).
+	// Contract: render thread, right after ImGui_ImplWin32_NewFrame.
+	void UseGameScreenSize()
+	{
+		const auto* state = RE::BSGraphics::State::GetSingleton();
+		if (state && state->screenWidth > 0 && state->screenHeight > 0) {
+			ImGui::GetIO().DisplaySize = ImVec2(static_cast<float>(state->screenWidth), static_cast<float>(state->screenHeight));
+		}
+	}
+
 	// Contract: called only from OverlayMenu::PostDisplay, so only while the menu
 	// is open. No ImGui frame runs while the window is closed.
 	void DrawFrame()
@@ -160,7 +176,8 @@ namespace
 		}
 
 		ImGui_ImplDX11_NewFrame();
-		ImGui_ImplWin32_NewFrame();  // sets io.DisplaySize; also queues the OS cursor, which prepareFrame's input feed overrides
+		ImGui_ImplWin32_NewFrame();  // sizes io.DisplaySize by the window; also queues the OS cursor, which prepareFrame's input feed overrides
+		UseGameScreenSize();
 		DropBackendGamepadKeys();
 		g_config.prepareFrame(ImGui::GetIO().DisplaySize.y);
 		ImGui::NewFrame();

@@ -1608,18 +1608,19 @@ namespace
 		return std::round((font + ImGui::GetStyle().FramePadding.y * 2.0f) * kRowIconRatio);
 	}
 
-	// A tick row's icon (Theme::RowIcon), RowIconSide square, its left edge at `a_left` and
-	// centred on `a_midY`, tinted through the style alpha; nothing for a key without a texture.
-	void DrawRowIcon(ImDrawList* a_draw, float a_left, float a_midY, const Theme::RowIcon& a_icon)
+	// A tick row's icon (Theme::RowIcon), `a_side` square, its left edge at `a_left` and
+	// centred on `a_midY`, tinted (with the text colour for RowIcon::textColor) through the
+	// style alpha; nothing for a key without a texture.
+	void DrawRowIcon(ImDrawList* a_draw, float a_left, float a_midY, const Theme::RowIcon& a_icon, float a_side = RowIconSide())
 	{
 		const auto found = g_rowIcons.find(a_icon.key);
 		if (found == g_rowIcons.end()) {
 			return;
 		}
-		const float  side = RowIconSide();
-		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - side * 0.5f));
-		const ImU32  tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
-		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - a_side * 0.5f));
+		const ImU32  tint = a_icon.textColor ? ImGui::GetColorU32(ImGuiCol_Text) :
+		                                       ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
+		a_draw->AddImage(found->second.Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
 	}
 
 	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the selected
@@ -4291,14 +4292,19 @@ namespace Theme
 		return ImGui::GetTextLineHeight() + kSelectRowPadY * 2.0f * g_scale;
 	}
 
-	bool SelectRow(const char* a_label, bool a_selected)
+	bool SelectRow(const char* a_label, bool a_selected, const RowIcon* a_icon)
 	{
-		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
-		const float   textX = row.min.x + row.inset + RowTextShift();
+		const float   height = SelectRowHeight();
+		const ListRow row = LayOutListRow(a_label, height);
+		float         textX = row.min.x + row.inset + RowTextShift();
 		auto*         draw = ImGui::GetWindowDrawList();
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		if (a_selected) {
 			DrawSelectMark(draw, row, textX);
+		}
+		if (a_icon) {
+			DrawRowIcon(draw, textX, row.min.y + height * 0.5f, *a_icon);
+			textX += RowIconRoom();
 		}
 		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
@@ -4316,6 +4322,18 @@ namespace Theme
 			textX += RowIconRoom();
 		}
 		draw->AddText(ImVec2(textX, cursor.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+	}
+
+	void IconText(const char* a_text, const RowIcon& a_icon)
+	{
+		const float  side = OutfitIconSide();
+		const float  room = g_rowIcons.empty() ? 0.0f : side + kRowIconGap * g_scale;
+		const ImVec2 cursor = ImGui::GetCursorScreenPos();
+		const ImVec2 text = ImGui::CalcTextSize(a_text);
+		ImGui::Dummy(ImVec2(room + text.x, text.y));
+		auto* draw = ImGui::GetWindowDrawList();
+		DrawRowIcon(draw, cursor.x, cursor.y + text.y * 0.5f, a_icon, side);
+		draw->AddText(ImVec2(cursor.x + room, cursor.y), ImGui::GetColorU32(ImGuiCol_Text), a_text);
 	}
 
 	// The rule after a ListHeading's text, kTextRuleGap past `a_textRight`, to kRuleEndPad short of

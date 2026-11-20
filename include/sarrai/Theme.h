@@ -283,9 +283,10 @@ namespace Theme
 	// may repeat. Rows with icons start their first column at RowIconRoom.
 	struct RowIcon
 	{
-		std::string_view key;        // an IconFile's key; "" for none
-		std::uint32_t    rgb = 0;    // the white icon's tint, 0xRRGGBB
-		HeadingIcon      line = {};  // OutfitRow only: this line drawing in the text colour, in place of `key`
+		std::string_view key;                // an IconFile's key; "" for none
+		std::uint32_t    rgb = 0;            // the white icon's tint, 0xRRGGBB
+		HeadingIcon      line = {};          // OutfitRow only: this line drawing in the text colour, in place of `key`
+		bool             textColor = false;  // TickRow, SelectRow, TextRow, IconText: tinted with the text colour, not `rgb`
 	};
 	struct RowMark
 	{
@@ -310,10 +311,11 @@ namespace Theme
 	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Modern's accent rule on its left edge;
 	// Modern also fills it as a ticked row, Vanilla lays the tick row's bar over it,
 	// Nordic shows the arrow alone. A hovered row gets the tick row's hover fill.
+	// With `icon`, as TextRow draws it: before the text, which starts RowIconRoom later.
 	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
-	bool  SelectRow(const char* label, bool selected);
+	bool  SelectRow(const char* label, bool selected, const RowIcon* icon = nullptr);
 	float SelectRowHeight();
 
 	// A read-only row laid out as SelectRow lays out its text, with no fill or
@@ -323,6 +325,12 @@ namespace Theme
 	// Lay rows out ListRowGap apart.
 	// Contract: inside BeginList.
 	void TextRow(const char* label, const RowIcon* icon = nullptr);
+
+	// A line of text after `icon`, drawn the text's height square (as an outfit row's icon) and
+	// 6px before it, outside a list; one item, the icon included. The text starts that far in
+	// also for a key with no texture, so lines under each other line up; at the cursor when no
+	// icon texture loaded.
+	void IconText(const char* text, const RowIcon& icon);
 
 	// A mark left of a list heading's text, an 18px square in its grey centred on the text's
 	// line, which moves the text right.

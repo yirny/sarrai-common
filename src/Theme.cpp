@@ -3243,6 +3243,68 @@ namespace Theme
 		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true, a_plainNames });  // 1px lines at 1080p
 	}
 
+	namespace
+	{
+		// Chinese and Japanese have no spaces: a line of them may break after any character
+		// (U+2E80 on: CJK, kana, fullwidth forms, Hangul), but not before a mark that may not
+		// start a line nor after one that may not end it (the common kinsoku rules).
+		bool IsCjk(unsigned int a_char)
+		{
+			return a_char >= 0x2E80;
+		}
+
+		// Closing brackets and punctuation, ASCII and fullwidth, small kana, the long vowel mark,
+		// the iteration marks and the ellipsis: ) ] } . , ! ? : ; 、 。 ， ． ） 」 』 】 〕 〉 》
+		// ！ ？ ： ； ー ・ ぁ ぃ ぅ ぇ ぉ っ ゃ ゅ ょ ゎ ァ ィ ゥ ェ ォ ッ ャ ュ ョ ヮ ヵ ヶ 々 〜 …
+		bool MayNotStartLine(unsigned int a_char)
+		{
+			constexpr std::u32string_view kMarks =
+				U")]}.,!?:;、。，．）」』】〕〉》！？：；ー・"
+				U"ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮ"
+				U"ヵヶ々〜…";
+			return kMarks.find(static_cast<char32_t>(a_char)) != std::u32string_view::npos;
+		}
+
+		// Opening brackets: ( [ { （ 「 『 【 〔 〈 《
+		bool MayNotEndLine(unsigned int a_char)
+		{
+			constexpr std::u32string_view kMarks = U"([{（「『【〔〈《";
+			return kMarks.find(static_cast<char32_t>(a_char)) != std::u32string_view::npos;
+		}
+
+		// The first character of `a_text`; 0 for none.
+		unsigned int FirstChar(std::string_view a_text)
+		{
+			unsigned int c = 0;
+			if (!a_text.empty()) {
+				ImTextCharFromUtf8(&c, a_text.data(), a_text.data() + a_text.size());
+			}
+			return c;
+		}
+
+		// Where the piece of a run's plain text `a_text` from `a_at` ends, and whether a line may
+		// break there: after a space, or after a CJK character a line may break after, judged by
+		// the next character, in `a_next` (the text after this part) past this part's end. With
+		// no such place, at the end of `a_text` and no break, so the piece joins the next part's.
+		std::pair<std::size_t, bool> PieceEnd(std::string_view a_text, std::size_t a_at, std::string_view a_next)
+		{
+			const char* begin = a_text.data();
+			const char* end = begin + a_text.size();
+			for (const char* s = begin + a_at; s < end;) {
+				unsigned int c = 0;
+				s += ImTextCharFromUtf8(&c, s, end);
+				const auto at = static_cast<std::size_t>(s - begin);
+				if (c == ' ') {
+					return { at, true };
+				}
+				if (IsCjk(c) && !MayNotEndLine(c) && !MayNotStartLine(FirstChar(s < end ? a_text.substr(at) : a_next))) {
+					return { at, true };
+				}
+			}
+			return { a_text.size(), false };
+		}
+	}
+
 	// Laid out twice: once to find the lines and the widest, so the item claims its size before
 	// the drawing, and once to draw.
 	void RunTextWrapped(std::span<const SubtitleRun> a_parts)
@@ -3251,25 +3313,26 @@ namespace Theme
 		{
 			std::size_t      part;
 			std::string_view text;
-			float            iconRoom;  // a name's, on its piece
-			float            width;     // the icon's room and the text's
+			float            iconRoom;    // a name's, on its piece
+			float            width;       // the icon's room and the text's
+			bool             breakAfter;  // a line may break after it (PieceEnd)
 		};
 		const RunLook look{ ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true };  // 1px lines at 1080p
-		// A plain part's pieces end after each space; a name is one piece.
+		// A plain part's pieces end where a line may break (PieceEnd); a name is one piece.
 		std::vector<Piece> pieces;
 		for (std::size_t i = 0; i < a_parts.size(); ++i) {
 			const auto&            part = a_parts[i];
 			const std::string_view text = part.text;
 			if (part.icon != HeadingIcon::kNone || !part.rowIconKey.empty()) {
 				const float room = RunIconRoom(part, look);
-				pieces.push_back({ i, text, room, room + ImGui::CalcTextSize(text.data(), text.data() + text.size()).x });
+				pieces.push_back({ i, text, room, room + ImGui::CalcTextSize(text.data(), text.data() + text.size()).x, false });
 				continue;
 			}
+			const std::string_view next = i + 1 < a_parts.size() ? std::string_view(a_parts[i + 1].text) : std::string_view{};
 			for (std::size_t at = 0; at < text.size();) {
-				const auto        space = text.find(' ', at);
-				const std::size_t end = space == std::string_view::npos ? text.size() : space + 1;
-				const auto        piece = text.substr(at, end - at);
-				pieces.push_back({ i, piece, 0.0f, ImGui::CalcTextSize(piece.data(), piece.data() + piece.size()).x });
+				const auto [end, breaks] = PieceEnd(text, at, next);
+				const auto piece = text.substr(at, end - at);
+				pieces.push_back({ i, piece, 0.0f, ImGui::CalcTextSize(piece.data(), piece.data() + piece.size()).x, breaks });
 				at = end;
 			}
 		}
@@ -3278,8 +3341,8 @@ namespace Theme
 		const float  lineHeight = ImGui::GetTextLineHeight();
 		const float  spaceWidth = ImGui::CalcTextSize(" ").x;
 		// Calls `a_place(piece, x, line)` for each piece; returns the lines and the widest. A
-		// word, the pieces up to one ending in a space, goes to the next line when it would pass
-		// the edge, its trailing space left hanging.
+		// word, the pieces up to one a line may break after, goes to the next line when it would
+		// pass the edge, its trailing space left hanging.
 		const auto layOut = [&](auto&& a_place) {
 			float x = 0.0f;
 			float widest = 0.0f;
@@ -3289,7 +3352,7 @@ namespace Theme
 				float       width = 0.0f;
 				do {
 					width += pieces[end].width;
-				} while (!pieces[end++].text.ends_with(' ') && end < pieces.size());
+				} while (!pieces[end++].breakAfter && end < pieces.size());
 				const float hanging = pieces[end - 1].text.ends_with(' ') ? spaceWidth : 0.0f;
 				if (x > 0.0f && x + width - hanging > wrap) {
 					++line;
@@ -4123,10 +4186,13 @@ namespace Theme
 	}
 
 	// The popup takes the field's width as its least (ImGui::BeginCombo), so a row wider than
-	// that, as Nordic's with its select arrow, needs the field widened.
+	// that, as Nordic's with its select arrow, needs the field widened. ImGui pads the popup's
+	// sides by the field's text inset, aligning the rows with the field's text
+	// (ImGui::BeginComboPopup), which a field with an icon makes wider than the skin's padding.
 	float DropdownWidth(const char* a_label, const FieldStyle& a_style)
 	{
-		const float padding = (g_skin == Skin::kModern ? kModernDropdownPadding : kSquareDropdownPadding).x * g_scale;
+		const float skinPadding = (g_skin == Skin::kModern ? kModernDropdownPadding : kSquareDropdownPadding).x * g_scale;
+		const float padding = (std::max)(skinPadding, FieldTextInset(SkinnedStyle(a_style)));
 		return (std::max)(ComboWidth(a_label, a_style), DropdownRowWidth(a_label, false) + padding * 2.0f);
 	}
 

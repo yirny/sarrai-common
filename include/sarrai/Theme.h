@@ -384,8 +384,9 @@ namespace Theme
 	void RunText(std::span<const SubtitleRun> parts, bool plainNames = false);
 
 	// RunText wrapped as TextWrapped wraps (at the text wrap position pushed, else the content's
-	// right edge), breaking only after a space, so a name stays whole with its icon and the
-	// punctuation after it; a name wider than the line is cut with an ellipsis. It claims the
+	// right edge), breaking only after a space or, in Chinese and Japanese, after a character
+	// (kinsoku rules kept), so a name stays whole with its icon and the punctuation or particle
+	// after it; a name wider than the line is cut with an ellipsis. It claims the
 	// widest line's width.
 	// Contract: the texts are shown as they are.
 	void RunTextWrapped(std::span<const SubtitleRun> parts);

@@ -2554,7 +2554,7 @@ namespace
 		}
 	}
 
-	// After a caution sign icon on Flaticon (Premium licence).
+	// After "Caution Sign" by smashingstocks on Flaticon (Premium licence).
 	// A warning: a filled triangle, point up, its corners round, with an exclamation mark in it:
 	// a bar narrowing downwards over a dot. A fill cannot have a hole, so the mark is drawn over
 	// the triangle in the window's colour. Points are in the source's 30 square, y down, x from
@@ -4445,7 +4445,7 @@ namespace Theme
 
 	bool RemovableRow(const char* a_label, const RemovableRowLook& a_look, RemovableRowPart* a_hovered)
 	{
-		const float height = SelectRowHeight();
+		const float height = ImGui::GetFrameHeight();  // a tick row's, so its icon fits as on one
 		// The row is no keyboard stop, and the × laid over its right end takes the mouse there.
 		ImGui::SetNextItemAllowOverlap();
 		const ListRow row = LayOutListRow(a_label, height, ImGuiButtonFlags_None);
@@ -4468,8 +4468,8 @@ namespace Theme
 			DrawRowIcon(draw, textX, row.min.y + height * 0.5f, *a_look.icon);
 			textX += RowIconRoom();
 		}
-		const float  textY = row.min.y + kSelectRowPadY * g_scale;
 		const ImVec2 textSize = ImGui::CalcTextSize(a_label);
+		const float  textY = row.min.y + (height - textSize.y) * 0.5f;
 		if (textX + textSize.x <= crossMin.x) {
 			draw->AddText(ImVec2(textX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		} else if (crossMin.x > textX) {

@@ -328,12 +328,13 @@ namespace Theme
 	// Contract: inside BeginList.
 	void TextRow(const char* label, const RowIcon* icon = nullptr);
 
-	// A row the user can only remove, SelectRowHeight tall, laid out as TextRow lays out its
-	// icon and text, the text ending in an ellipsis short of a × at the row's right end, in a
-	// square of the row's height: greyed, lit while hovered. Returns true when the × is
-	// pressed; a click on the rest of the row does nothing, and only the × takes the keyboard
-	// focus. The row gets the tick row's hover fill while the mouse is over any of it;
-	// `hovered` (if any) is set to the part under the mouse, for the caller's tooltips.
+	// A row the user can only remove, as tall as a tick row (the frame height), its icon and
+	// text centred on it as a tick row's, the text ending in an ellipsis short of a × at the
+	// row's right end, in a square of the row's height: greyed, lit while hovered. Returns true
+	// when the × is pressed; a click on the rest of the row does nothing, and only the × takes
+	// the keyboard focus. The row gets the tick row's hover fill while the mouse is over any of
+	// it; `hovered` (if any) is set to the part under the mouse, for the caller's tooltips.
+	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's ImGui ID, so PushID
 	// around rows whose labels may repeat.
 	struct RemovableRowLook

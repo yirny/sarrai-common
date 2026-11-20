@@ -34,13 +34,14 @@ namespace Theme
 		std::uint32_t text = 0xE4E7E8FF;         // text
 		std::uint32_t label = 0x989B9CFF;        // field and column labels, list headings, links, greyed text
 		std::uint32_t emphasis = 0xF3ECBBFF;     // names inside a line of greyed text or a link, at 0.85 of this until the mouse lights them
-		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, lit links, the dropdown arrow, a narrowing field's frame
+		std::uint32_t accent = 0xA0A3A4FF;       // ticks, a selected row's rule, the dropdown arrow, a narrowing field's frame
 		std::uint32_t accentLight = 0xD0D3D4FF;  // the text cursor, a scroll bar or slider held
 		std::uint32_t rule = 0x4A4B4CFF;         // the rules and frames of the window, its fields and lists
 		std::uint32_t hover = 0x4B4E4FFF;        // a hovered row
 		std::uint32_t selected = 0x2A2D2EFF;     // a selected row, the selected tab, a narrowing field's fill
 		std::uint32_t stripe = 0x00000020;       // every second outfit row, laid over it
 		std::uint32_t error = 0xFF6666FF;        // error text and fields
+		std::uint32_t positive = 0xB7DA7BFF;     // a condition that is met now
 	};
 
 	// A row icon's PNG: a white image, tinted as it is drawn. The key names it to TickRow,
@@ -85,8 +86,9 @@ namespace Theme
 	// says what a skin draws in place of ImGui's own.
 
 	// Call right after ImGui::Begin, or BeginPopupModal with `popup`: corner ornaments (Nordic);
-	// on the main window, Vanilla's frame, a 3px band of the rule colour inside its edge and a
-	// 4px band of the window's glass outside it, in place of ImGui's border.
+	// Vanilla's frame, a 3px band of the rule colour inside its edge and a 4px band of the
+	// window's glass outside it (a popup's own background), in place of ImGui's border.
+	// A modal begins inside PushModalStyle, so it draws no border of its own under them.
 	void DecorateWindow(bool popup = false);
 
 	// One line in the heading font, then the subtitle (if any) greyed under it;
@@ -128,10 +130,11 @@ namespace Theme
 	// A clickable label at the right end of the line just laid out (call it
 	// right after CountText): a filled rounded square with a plus cut out of
 	// it, then `label`, both in CountText's font and colour, lit while hovered
-	// (the text colour in Vanilla and Nordic, the accent in Modern). Returns true when clicked.
+	// (the text colour). Returns true when clicked.
 	// Inside BeginDisabled it is faded, never lit, and inert, like ImGui's widgets.
 	// `line` kNext starts a line of its own under the item just laid out, 4px further down, for
-	// a second link or one under a list. `icon` (a
+	// a second link or one under a list; kNextLeft is that line with the link at its left end,
+	// where the cursor is, and the item spacing below it, not a label's. `icon` (a
 	// HeadingIcon, below) and `afterIcon` follow the label, for an icon inside the words:
 	// "[+] Add from <icon> Wardrobe...", the icon a square of the plus's side, 1px lines at 1080p.
 	// Those two are in the palette's emphasis, at 0.85 of it until hovered.
@@ -140,7 +143,8 @@ namespace Theme
 	enum class LinkLine
 	{
 		kSame,
-		kNext
+		kNext,
+		kNextLeft
 	};
 	enum class HeadingIcon;
 	bool LabelLink(const char* label, LinkLine line = LinkLine::kSame, HeadingIcon icon = {}, const char* afterIcon = nullptr);
@@ -165,6 +169,17 @@ namespace Theme
 	// LineHelpLink without the "(?)": `label` alone at the line's right end, lit while hovered.
 	// Contract: the label is shown as is and is the ImGui ID.
 	bool LineLink(const char* label);
+
+	// LineLink at the line's left end, where its first item would start, whatever the line holds
+	// already: call it after the line's other items, as a centred button row's.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LeftLineLink(const char* label);
+
+	// LineLink on a label's line (call it right after LabelText or LabelHelpMark): `label` at
+	// the line's right end, its capitals level with the label's in every skin; the line keeps
+	// the item spacing below it.
+	// Contract: the label is shown as is and is the ImGui ID.
+	bool LabelLineLink(const char* label);
 
 	// Width LineHelpLink(label) takes, so a caller can keep room for it beside a centred row.
 	float LineHelpLinkWidth(const char* label);
@@ -237,7 +252,7 @@ namespace Theme
 	float ColumnGap();
 
 	// The column labels over a list, in LabelText's font, colour and capitals, each lit
-	// while hovered (the text colour in Vanilla and Nordic, the accent in Modern); the label of
+	// while hovered (the text colour); the label of
 	// column `sorted` has a small arrow after it, pointing up unless
 	// `descending`. A label starting with "##" is an unnamed column: its arrow alone, centred
 	// on its x, or while unsorted the up arrow over the down one, 2px between their bases,
@@ -268,9 +283,10 @@ namespace Theme
 	// may repeat. Rows with icons start their first column at RowIconRoom.
 	struct RowIcon
 	{
-		std::string_view key;        // an IconFile's key; "" for none
-		std::uint32_t    rgb = 0;    // the white icon's tint, 0xRRGGBB
-		HeadingIcon      line = {};  // OutfitRow only: this line drawing in the text colour, in place of `key`
+		std::string_view key;                // an IconFile's key; "" for none
+		std::uint32_t    rgb = 0;            // the white icon's tint, 0xRRGGBB
+		HeadingIcon      line = {};          // OutfitRow only: this line drawing in the text colour, in place of `key`
+		bool             textColor = false;  // TickRow, SelectRow, TextRow, IconText: tinted with the text colour, not `rgb`
 	};
 	struct RowMark
 	{
@@ -295,10 +311,11 @@ namespace Theme
 	// NORDIC UI's MCM page arrow in Vanilla and Nordic, Modern's accent rule on its left edge;
 	// Modern also fills it as a ticked row, Vanilla lays the tick row's bar over it,
 	// Nordic shows the arrow alone. A hovered row gets the tick row's hover fill.
+	// With `icon`, as TextRow draws it: before the text, which starts RowIconRoom later.
 	// Lay rows out ListRowGap apart, as the tick rows.
 	// Contract: inside BeginList; the label is shown as is and is the row's
 	// ImGui ID, so PushID around rows whose labels may repeat.
-	bool  SelectRow(const char* label, bool selected);
+	bool  SelectRow(const char* label, bool selected, const RowIcon* icon = nullptr);
 	float SelectRowHeight();
 
 	// A read-only row laid out as SelectRow lays out its text, with no fill or
@@ -308,6 +325,12 @@ namespace Theme
 	// Lay rows out ListRowGap apart.
 	// Contract: inside BeginList.
 	void TextRow(const char* label, const RowIcon* icon = nullptr);
+
+	// A line of text after `icon`, drawn the text's height square (as an outfit row's icon) and
+	// 6px before it, outside a list; one item, the icon included. The text starts that far in
+	// also for a key with no texture, so lines under each other line up; at the cursor when no
+	// icon texture loaded.
+	void IconText(const char* text, const RowIcon& icon);
 
 	// A mark left of a list heading's text, an 18px square in its grey centred on the text's
 	// line, which moves the text right.
@@ -359,6 +382,30 @@ namespace Theme
 	// width, so a popup that fits its content grows to it.
 	// Contract: the texts are shown as they are.
 	void RunText(std::span<const SubtitleRun> parts, bool plainNames = false);
+
+	// RunText wrapped as TextWrapped wraps (at the text wrap position pushed, else the content's
+	// right edge), breaking only after a space, so a name stays whole with its icon and the
+	// punctuation after it; a name wider than the line is cut with an ellipsis. It claims the
+	// widest line's width.
+	// Contract: the texts are shown as they are.
+	void RunTextWrapped(std::span<const SubtitleRun> parts);
+
+	// A part of RunLinks' text: a link, or what sits between links (a comma, a full stop); its
+	// colour packed as ImGui's ImU32, 0 for the text colour.
+	struct LinkRun
+	{
+		const char* text;
+		bool        link = true;
+		unsigned    color = 0;
+	};
+
+	// Body text made of `runs`, wrapped to the content width as TextWrapped wraps it, each run
+	// in its colour; a link run under the mouse is the one hovered, and with `lit` it is drawn
+	// in LinkColor's lit colour and underlined. Returns the index of the link run clicked, or
+	// -1; `hovered` (if any) gets the one hovered, or -1. Not reached by keyboard or
+	// controller navigation, so whatever a click does needs another way in.
+	// Contract: in the caller's ID scope (one per scope); the texts are shown as they are.
+	int RunLinks(std::span<const LinkRun> runs, bool lit, int* hovered = nullptr);
 
 	// HeadingText with `icon` before its own line, sized as HeadingRunText's line icons, in the
 	// text colour, 6px before the text; Nordic centres the icon and the text together.
@@ -430,9 +477,10 @@ namespace Theme
 		bool grip = false;
 		bool alert = false;  // the name in ErrorColor
 		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
-		// mark, a square 4px short of the name's line height; this text is its tooltip while it is
-		// hovered. null for none.
-		const char* warning = nullptr;
+		// mark, a square 4px short of the name's line height. Its tooltip is the caller's:
+		// `warningHovered` (if any) is set to whether the mark is hovered.
+		bool  warning = false;
+		bool* warningHovered = nullptr;
 		// Shown while the mouse is over the icon or the name, the heading's height tall; null for none.
 		const char* nameTip = nullptr;
 	};
@@ -475,12 +523,14 @@ namespace Theme
 	// with a tooltip while the mouse is over it: a dressed form for the outfit the actor
 	// wears now (`Current outfit`, and `Default Outfit` on a second line when it is their
 	// Default too), else a bare form for their Default (`Default Outfit`); a star for one
-	// chosen for a situation (`situations` is its tooltip, `For Town, Warm`; null for none).
+	// chosen for a situation (`situations` is its tooltip, `For Town, Warm`; null for none); a
+	// warning mark in the error colour nearest the name (`warning` is its tooltip; null for none).
 	struct OutfitMarks
 	{
 		bool        current = false;
 		bool        defaultOutfit = false;  // the actor's Default holds it
 		const char* situations = nullptr;
+		const char* warning = nullptr;
 	};
 
 	// A row with the outfit's name, ending in an ellipsis short of `marks`, after its `icon`
@@ -578,7 +628,8 @@ namespace Theme
 	{
 		kNone,
 		kSearch,  // a magnifying glass
-		kFilter   // a funnel
+		kFilter,  // a funnel
+		kAdd      // LabelLink's plus in a filled square, for a dropdown that adds what is chosen
 	};
 
 	struct FieldStyle
@@ -588,6 +639,7 @@ namespace Theme
 		FieldIcon  icon = FieldIcon::kNone;
 		bool       previewIsHint = false;  // dropdowns: the preview is greyed, as an empty text field's hint
 		bool       alignRight = false;     // dropdowns: the preview's text ends 6px short of the arrow
+		bool       filled = false;         // dropdowns: Vanilla's and Nordic's underlined field has the palette's stripe colour behind it, and the frame padding left of its text and right of its arrow
 	};
 
 	// Height of a field of this style in the current font (pixels on the back buffer).
@@ -599,6 +651,9 @@ namespace Theme
 
 	// The red of error text and fields, packed as ImGui's ImU32.
 	unsigned ErrorColor();
+
+	// The green of what is met now (a condition), packed as ImGui's ImU32.
+	unsigned PositiveColor();
 
 	// A dropdown, used like ImGui::BeginCombo / EndCombo but always paired:
 	// fill the popup only when BeginCombo returned true, then call EndCombo
@@ -644,7 +699,7 @@ namespace Theme
 
 	// One tab of the column at the window's left edge, a square: the icon in the text colour
 	// on the selected row's fill while selected (its corners rounded 2px), else in LabelText's
-	// grey and lit while hovered (the text colour in Vanilla and Nordic, the accent in Modern), with
+	// grey and lit while hovered (the text colour), with
 	// `name` as a tooltip. Returns true when clicked. Faded and
 	// inert inside BeginDisabled.
 	// Contract: `name` is the ImGui ID.
@@ -686,10 +741,25 @@ namespace Theme
 	void BeginTooltip();
 	void EndTooltip();
 
-	// The padding of popups: Vanilla's keep the square skins' while its main window pads wider
-	// for the corner knots, which popups do not draw; the other skins keep the style's. Push
-	// just before a popup begins (ImGui reads the padding as it begins) and pop right after.
+	// The padding of tooltips: Vanilla's keep the square skins' while its windows pad wider
+	// for the corner knots, which tooltips do not draw; the other skins keep the style's. Push
+	// just before a tooltip begins (ImGui reads the padding as it begins) and pop right after.
 	// The tooltips above do this themselves.
 	void PushPopupPadding();
 	void PopPopupPadding();
+
+	// A modal window as the main window looks: its padding, and in Vanilla and Nordic no ImGui
+	// border, since DecorateWindow(true) draws the frame or the ornaments. Push just before
+	// BeginPopupModal and pop right after.
+	void PushModalStyle();
+	void PopModalStyle();
+
+	// A borderless area without a background, as tall as its content up to `maxHeight` (pixels
+	// on the back buffer), scrolling past it with the skin's scroll bar, which fades as a list's
+	// does (BeginList). Its content is as wide as the window's; the bar goes past it, into the
+	// window's right padding, so an auto-resizing window around it needs its width fixed
+	// (SetNextWindowSizeConstraints) or it grows by the bar at every frame. Used like
+	// BeginChild / EndChild: always call EndScrollArea. Not nested.
+	bool BeginScrollArea(const char* id, float maxHeight);
+	void EndScrollArea();
 }

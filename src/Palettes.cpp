@@ -83,7 +83,7 @@ namespace
 		const wchar_t*                  comment;
 		const wchar_t*                  squareComment = nullptr;
 	};
-	constexpr std::array<PaletteKey, 12> kPaletteKeys{ {
+	constexpr std::array<PaletteKey, 13> kPaletteKeys{ {
 		{ L"Window", &Theme::Palette::window, kAllSkins, L"The window." },
 		{ L"Surface", &Theme::Palette::surface, kAllSkins, L"Popups, dropdown lists and tooltips." },
 		{ L"Text", &Theme::Palette::text, kAllSkins, L"Text, and faint, the fills of fields, buttons and the scroll bar.",
@@ -91,7 +91,7 @@ namespace
 		{ L"Label", &Theme::Palette::label, kAllSkins, L"Field and column labels, list headings, links and greyed text." },
 		{ L"Emphasis", &Theme::Palette::emphasis, kAllSkins, L"Names inside greyed text or a link: this colour under the mouse, a little darker otherwise." },
 		{ L"Accent", &Theme::Palette::accent, kAllSkins,
-			L"Ticks, a selected row's rule, a link or label under the mouse, the dropdown arrow, the frame of a field that narrows a list.",
+			L"Ticks, a selected row's rule, the dropdown arrow, the frame of a field that narrows a list.",
 			L"The arrow at a selected row, ticks, and in Nordic the corner knots, the heading and tab ropes and the button frames." },
 		{ L"AccentLight", &Theme::Palette::accentLight, kModernOnly, L"The text cursor, a scroll bar or slider held." },
 		{ L"Rule", &Theme::Palette::rule, kAllSkins, L"The rules and frames of the window, its fields and lists." },
@@ -102,6 +102,7 @@ namespace
 			L"The bar over a selected row, fading in from its left end to this opacity." },
 		{ L"Stripe", &Theme::Palette::stripe, kAllSkins, L"Every second outfit row, laid over it." },
 		{ L"Error", &Theme::Palette::error, kAllSkins, L"Error text and fields." },
+		{ L"Positive", &Theme::Palette::positive, kAllSkins, L"A condition that is met now." },
 	} };
 
 	// A palette every plugin ships (WriteMissingPalettes).
@@ -128,6 +129,7 @@ namespace
 		.selected = 0xFFFFFF46,
 		.stripe = 0xFFFFFF10,
 		.error = 0xFF6666FF,
+		.positive = 0xB7DA7BFF,
 	};
 	constexpr Theme::Palette kNordicColours{
 		.window = 0x000000CC,
@@ -140,6 +142,7 @@ namespace
 		.hover = 0xE5E5E565,
 		.stripe = 0xFFFFFF10,
 		.error = 0xFF6666FF,
+		.positive = 0xB7DA7BFF,
 	};
 	constexpr Theme::Palette kEdgeColours{
 		.window = 0x1E1E1CF0,
@@ -154,6 +157,7 @@ namespace
 		.selected = 0x3C3931FF,
 		.stripe = 0x00000020,
 		.error = 0xFF6666FF,
+		.positive = 0xB7DA7BFF,
 	};
 
 	constexpr std::array<ShippedPalette, 4> kShippedPalettes{ {

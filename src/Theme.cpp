@@ -57,7 +57,7 @@
 #include <wrl/client.h>
 
 #include <imgui.h>
-#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview, RenderTextEllipsis
+#include <imgui_internal.h>  // BeginComboPreview / EndComboPreview, RenderTextEllipsis, CalcWrapWidthForPos
 
 #include <algorithm>
 #include <array>
@@ -101,7 +101,7 @@ namespace
 	// take the window's (Nordic's is wider for its corner ornaments; pixels at 1080p).
 	constexpr ImVec2 kSquareDropdownPadding{ 20.0f, 12.0f };
 	// The Vanilla and Nordic windows' padding before each skin widens its main window's for
-	// its corner ornaments; Vanilla's popups and tooltips keep it (PushPopupPadding; pixels at 1080p).
+	// its corner ornaments; Vanilla's tooltips keep it (PushPopupPadding; pixels at 1080p).
 	constexpr ImVec2 kSquareWindowPadding{ 20.0f, 16.0f };
 	// Width of Modern's accent rule on a selected row's left edge (pixels at 1080p).
 	constexpr float kAccentRuleWidth = 2.0f;
@@ -286,6 +286,7 @@ namespace
 	std::map<ImGuiID, ScrollbarFade> g_scrollbarFades;
 	ImGuiID                          g_listFadeId = 0;   // the open BeginList list's entry
 	ImGuiID                          g_comboFadeId = 0;  // the open BeginCombo dropdown's entry
+	ImGuiID                          g_areaFadeId = 0;   // the open BeginScrollArea area's entry
 
 	// Modern's colours in the frame being built. Render thread only.
 	Theme::Palette g_palette;
@@ -1005,8 +1006,8 @@ namespace
 			fade = {};
 		}
 		const double now = ImGui::GetTime();
-		const bool   hovered = g.HoveredWindow == window;  // the mouse in the window, nothing over it
-		if (!window->ScrollbarY) {
+		const bool   hovered = g.HoveredWindow == window;          // the mouse in the window, nothing over it
+		if (!window->ScrollbarY || window->ScrollMax.y <= 0.0f) {  // a bar kept while nothing scrolls (BeginScrollArea) stays hidden
 			fade.shown = false;
 		} else if ((hovered && (g.IO.MouseWheel != 0.0f || ImGui::GetWindowScrollbarRect(window, ImGuiAxis_Y).Contains(g.IO.MousePos))) ||
 				   g.ActiveId == ImGui::GetWindowScrollbarID(window, ImGuiAxis_Y)) {
@@ -1248,11 +1249,11 @@ namespace
 
 	// The game's item card knots at the window's four corners: the top-left one
 	// (vanilla-corner.png), mirrored into the others by drawing it from the corner inwards, in
-	// the band's colour, over a patch of the window's glass where it reaches past the outline
+	// the band's colour, over a patch of the window's glass `a_glass` where it reaches past the outline
 	// `a_outline` wide. Each knot carries the band's first stretch from its corner; returns how
 	// far along each side that runs, where the band (translucent, never under a knot) starts.
 	// Without the texture: draws nothing and returns 0.
-	float DrawVanillaCorners(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_bottomRight, float a_outline)
+	float DrawVanillaCorners(ImDrawList* a_draw, ImVec2 a_topLeft, ImVec2 a_bottomRight, float a_outline, ImU32 a_glass)
 	{
 		// Pixels at 1080p, the item card's own (its 1280x720 stage at 1.5): how far the knot's
 		// outer corner sits outside the window's, and the glass from there along each side.
@@ -1265,7 +1266,6 @@ namespace
 		const float  reach = std::round(kReach * g_scale);
 		const float  side = std::round(g_vanillaCorner.size.x * g_scale);
 		const float  backing = std::round(kBacking * g_scale);
-		const ImU32  glass = ImGui::GetColorU32(ImGuiCol_WindowBg);
 		const ImU32  band = ImGui::GetColorU32(ImGuiCol_Border);
 		const ImVec2 corners[] = { a_topLeft, ImVec2(a_bottomRight.x, a_topLeft.y), ImVec2(a_topLeft.x, a_bottomRight.y), a_bottomRight };
 		a_draw->PushClipRect(ImVec2(a_topLeft.x - reach, a_topLeft.y - reach), ImVec2(a_bottomRight.x + reach, a_bottomRight.y + reach), false);
@@ -1274,7 +1274,7 @@ namespace
 			const float y = corner.y == a_topLeft.y ? 1.0f : -1.0f;
 			const auto  at = [&](float a_dx, float a_dy) { return ImVec2(corner.x + x * a_dx, corner.y + y * a_dy); };
 			const auto  fill = [&](ImVec2 a_a, ImVec2 a_b) {
-				a_draw->AddRectFilled(ImVec2((std::min)(a_a.x, a_b.x), (std::min)(a_a.y, a_b.y)), ImVec2((std::max)(a_a.x, a_b.x), (std::max)(a_a.y, a_b.y)), glass);
+				a_draw->AddRectFilled(ImVec2((std::min)(a_a.x, a_b.x), (std::min)(a_a.y, a_b.y)), ImVec2((std::max)(a_a.x, a_b.x), (std::max)(a_a.y, a_b.y)), a_glass);
 			};
 			// The glass beyond the outline: a strip along the top or bottom, then one down the
 			// side, meeting the outline but never on it, so the translucent glass stays even.
@@ -1286,11 +1286,11 @@ namespace
 		return side - reach;
 	}
 
-	// Vanilla's main window frame: a band of the rule colour inside the window's edge, and
-	// outside it a band of the window's own glass, with the game's item card knots at the
+	// Vanilla's window frame: a band of the rule colour inside the window's edge, and
+	// outside it a band of the window's own glass `a_glass` (WindowBg, or a popup's PopupBg), with the game's item card knots at the
 	// corners (DrawVanillaCorners). The clip rect is the frame's own, so the outer band shows
 	// past the window.
-	void DrawVanillaFrame()
+	void DrawVanillaFrame(ImU32 a_glass)
 	{
 		constexpr float kOutlineWidth = 4.0f;  // pixels at 1080p, the glass outside the band
 
@@ -1303,8 +1303,8 @@ namespace
 		const ImVec2 outerTopLeft(topLeft.x - outline, topLeft.y - outline);
 		const ImVec2 outerBottomRight(bottomRight.x + outline, bottomRight.y + outline);
 		draw->PushClipRect(outerTopLeft, outerBottomRight, false);
-		FillFrame(draw, outerTopLeft, outerBottomRight, outline, ImGui::GetColorU32(ImGuiCol_WindowBg));
-		const float clear = DrawVanillaCorners(draw, topLeft, bottomRight, outline);
+		FillFrame(draw, outerTopLeft, outerBottomRight, outline, a_glass);
+		const float clear = DrawVanillaCorners(draw, topLeft, bottomRight, outline, a_glass);
 		FillFrame(draw, topLeft, bottomRight, band, ImGui::GetColorU32(ImGuiCol_Border), clear);
 		draw->PopClipRect();
 	}
@@ -1616,18 +1616,19 @@ namespace
 		return std::round((font + ImGui::GetStyle().FramePadding.y * 2.0f) * kRowIconRatio);
 	}
 
-	// A tick row's icon (Theme::RowIcon), RowIconSide square, its left edge at `a_left` and
-	// centred on `a_midY`, tinted through the style alpha; nothing for a key without a texture.
-	void DrawRowIcon(ImDrawList* a_draw, float a_left, float a_midY, const Theme::RowIcon& a_icon)
+	// A tick row's icon (Theme::RowIcon), `a_side` square, its left edge at `a_left` and
+	// centred on `a_midY`, tinted (with the text colour for RowIcon::textColor) through the
+	// style alpha; nothing for a key without a texture.
+	void DrawRowIcon(ImDrawList* a_draw, float a_left, float a_midY, const Theme::RowIcon& a_icon, float a_side = RowIconSide())
 	{
 		const auto found = g_rowIcons.find(a_icon.key);
 		if (found == g_rowIcons.end()) {
 			return;
 		}
-		const float  side = RowIconSide();
-		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - side * 0.5f));
-		const ImU32  tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
-		a_draw->AddImage(found->second.Id(side), topLeft, ImVec2(topLeft.x + side, topLeft.y + side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
+		const ImVec2 topLeft(std::round(a_left), std::round(a_midY - a_side * 0.5f));
+		const ImU32  tint = a_icon.textColor ? ImGui::GetColorU32(ImGuiCol_Text) :
+		                                       ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
+		a_draw->AddImage(found->second.Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), tint);
 	}
 
 	// Modern's tick row, marked as Tailor 3.0 marks a selected row: while ticked, the selected
@@ -1803,13 +1804,21 @@ namespace
 		}
 	}
 
-	// Room between a field's left edge and its text: a boxed field's frame
-	// padding, then the icon and a gap after it.
+	// Whether a field keeps the frame padding at its left and right ends: a boxed one, and an
+	// underlined one with a fill behind it (FieldStyle::filled), whose text and arrow would
+	// touch the fill's edges.
+	bool HasSidePadding(const Theme::FieldStyle& a_style)
+	{
+		return a_style.shape == Theme::FieldShape::kBoxed || (a_style.filled && a_style.shape == Theme::FieldShape::kUnderlined);
+	}
+
+	// Room between a field's left edge and its text: the frame padding of a field
+	// that keeps it (HasSidePadding), then the icon and a gap after it.
 	// Contract: called with the skin's frame padding in force (not PushFieldStyle's).
 	float FieldTextInset(const Theme::FieldStyle& a_style)
 	{
 		const auto& style = ImGui::GetStyle();
-		float       inset = a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		float       inset = HasSidePadding(a_style) ? style.FramePadding.x : 0.0f;
 		if (a_style.icon != Theme::FieldIcon::kNone) {
 			inset += ImGui::GetFontSize() * kFieldIconRatio + style.ItemInnerSpacing.x;
 		}
@@ -1825,7 +1834,8 @@ namespace
 	// What a field of this style is laid out and drawn with; the border colour
 	// is also the one its dropdown popup opens with. A field without a frame
 	// has square corners and no fill, except the selected rows' fill while
-	// highlighted. Undo with PopFieldStyle.
+	// highlighted and, underlined, the palette's stripe colour when the style
+	// asks for it (FieldStyle::filled). Undo with PopFieldStyle.
 	PushedStyle PushFieldStyle(const Theme::FieldStyle& a_style)
 	{
 		const bool  boxed = a_style.shape == Theme::FieldShape::kBoxed;
@@ -1836,7 +1846,12 @@ namespace
 		if (!boxed) {
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
-			const ImVec4 fill = a_style.look == Theme::FieldLook::kHighlighted ? ImGui::GetStyleColorVec4(ImGuiCol_Header) : ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+			ImVec4 fill(0.0f, 0.0f, 0.0f, 0.0f);
+			if (a_style.look == Theme::FieldLook::kHighlighted) {
+				fill = ImGui::GetStyleColorVec4(ImGuiCol_Header);
+			} else if (a_style.filled && a_style.shape == Theme::FieldShape::kUnderlined) {
+				fill = ImGui::ColorConvertU32ToFloat4(PaletteColor(g_palette.stripe));
+			}
 			for (const auto col : { ImGuiCol_FrameBg, ImGuiCol_FrameBgHovered, ImGuiCol_FrameBgActive }) {
 				ImGui::PushStyleColor(col, fill);
 			}
@@ -1866,6 +1881,8 @@ namespace
 		ImGui::GetWindowDrawList()->AddLine(ImVec2(a_min.x, a_max.y - 0.5f), ImVec2(a_max.x, a_max.y - 0.5f), color);
 	}
 
+	void DrawPlusSquare(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, ImU32 a_color);
+
 	// The field's icon in grey, at the start of its text inset and centred on
 	// its rect (screen pixels). The shapes are laid out in fractions of the
 	// icon's size.
@@ -1878,12 +1895,17 @@ namespace
 			return;
 		}
 		const float size = ImGui::GetFontSize() * kFieldIconRatio;
-		const float left = a_min.x + (a_style.shape == Theme::FieldShape::kBoxed ? ImGui::GetStyle().FramePadding.x : 0.0f);
+		const float left = a_min.x + (HasSidePadding(a_style) ? ImGui::GetStyle().FramePadding.x : 0.0f);
 		const float top = (a_min.y + a_max.y - size) * 0.5f;
 		const auto  at = [&](float a_x, float a_y) { return ImVec2(left + size * a_x, top + size * a_y); };
 		const ImU32 color = ImGui::GetColorU32(ImGuiCol_TextDisabled);
 		const float thickness = (std::max)(1.0f, kLineWidth * g_scale);
 		auto*       draw = ImGui::GetWindowDrawList();
+		if (a_style.icon == Theme::FieldIcon::kAdd) {
+			// LabelLink's plus mark, on whole pixels as its pieces need.
+			DrawPlusSquare(draw, ImVec2(std::round(left), std::round(top)), std::round(size), color);
+			return;
+		}
 		if (a_style.icon == Theme::FieldIcon::kSearch) {
 			const ImVec2 centre = at(0.42f, 0.42f);
 			const float  radius = size * 0.3f;
@@ -1971,7 +1993,7 @@ namespace
 		const bool   ownArrow = HasCustomDropdownArrow();
 		const bool   lit = a_open || ImGui::IsItemHovered();
 		const ImVec2 arrow = DropdownArrowSize();
-		const float  arrowLeft = frameMax.x - (a_style.shape == Theme::FieldShape::kBoxed ? style.FramePadding.x : 0.0f) - arrow.x;
+		const float  arrowLeft = frameMax.x - (HasSidePadding(a_style) ? style.FramePadding.x : 0.0f) - arrow.x;
 		// Without its own arrow, ImGui's arrow button already lies outside the preview's rect.
 		const float textRight = ownArrow ? arrowLeft - style.ItemInnerSpacing.x : frameMax.x;
 		DrawFieldRule(a_style, frameMin, frameMax);
@@ -2643,34 +2665,51 @@ namespace
 		return a_marks.defaultOutfit ? g_currentAndDefault.c_str() : g_texts.currentOutfit;
 	}
 
+	// The tooltips of an outfit row's marks (Theme::OutfitMarks) from the right, as
+	// DrawOutfitMarks draws them: the star's, the form mark's (HasFormMark), the warning's.
+	// Returns how many there are.
+	int OutfitMarkTooltips(const Theme::OutfitMarks& a_marks, std::array<const char*, 3>& a_tooltips)
+	{
+		int count = 0;
+		if (a_marks.situations) {
+			a_tooltips[count++] = a_marks.situations;
+		}
+		if (HasFormMark(a_marks)) {
+			a_tooltips[count++] = FormMarkTooltip(a_marks);
+		}
+		if (a_marks.warning) {
+			a_tooltips[count++] = a_marks.warning;
+		}
+		return count;
+	}
+
 	// The marks at the right end of an outfit row's name line (Theme::OutfitMarks), each a
 	// square of the text height, from the right: the star of an outfit chosen for a
 	// situation, then the form mark (HasFormMark), dressed for the current outfit, bare for
-	// the Default worn not now. Returns how many are drawn.
-	int DrawOutfitMarks(ImDrawList* a_draw, ImVec2 a_right, const Theme::OutfitMarks& a_marks, ImU32 a_color, float a_thick)
+	// the Default worn not now, in `a_color`; then the warning in the error colour.
+	void DrawOutfitMarks(ImDrawList* a_draw, ImVec2 a_right, const Theme::OutfitMarks& a_marks, ImU32 a_color, float a_thick)
 	{
 		const float side = ImGui::GetTextLineHeight();
 		float       x = a_right.x;
-		int         drawn = 0;
-		const auto  draw = [&](bool a_on, void (*a_icon)(ImDrawList*, const IconFrame&, ImU32, float)) {
+		const auto  draw = [&](bool a_on, void (*a_icon)(ImDrawList*, const IconFrame&, ImU32, float), ImU32 a_iconColor) {
 			if (!a_on) {
 				return;
 			}
 			x -= side;
-			a_icon(a_draw, IconFrame{ ImVec2(x, a_right.y - side * 0.5f), side }, a_color, a_thick);
+			a_icon(a_draw, IconFrame{ ImVec2(x, a_right.y - side * 0.5f), side }, a_iconColor, a_thick);
 			x -= kOutfitMarkGap * g_scale;
-			++drawn;
 		};
-		draw(a_marks.situations != nullptr, DrawStarIcon);
-		draw(a_marks.current, DrawDressedFormIcon);
-		draw(!a_marks.current && a_marks.defaultOutfit, DrawDressFormIcon);
-		return drawn;
+		draw(a_marks.situations != nullptr, DrawStarIcon, a_color);
+		draw(a_marks.current, DrawDressedFormIcon, a_color);
+		draw(!a_marks.current && a_marks.defaultOutfit, DrawDressFormIcon, a_color);
+		draw(a_marks.warning != nullptr, DrawWarningIcon, ErrorRed());
 	}
 
 	// The width the marks take at the row's right end, the gap to the name included.
 	float OutfitMarksWidth(const Theme::OutfitMarks& a_marks)
 	{
-		const int count = (HasFormMark(a_marks) ? 1 : 0) + (a_marks.situations ? 1 : 0);
+		std::array<const char*, 3> tooltips{};
+		const int                  count = OutfitMarkTooltips(a_marks, tooltips);
 		return count == 0 ? 0.0f : static_cast<float>(count) * ImGui::GetTextLineHeight() + static_cast<float>(count) * kOutfitMarkGap * g_scale;
 	}
 
@@ -2800,16 +2839,16 @@ namespace
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing.x, (std::max)(0.0f, spacing.y - LabelGapTrim())));
 	}
 
-	// LabelText's grey, or the lit colour while hovered: the accent in Modern, the text
-	// colour in Vanilla and Nordic.
 	constexpr float kLinkIconGap = 2.0f;  // pixels at 1080p, either side of a label link's icon, whose drawing keeps its own margin
 
+	// A link's, column label's or tab icon's: LabelText's grey, or the lit colour while hovered,
+	// the text colour in every skin.
 	ImU32 LinkColor(bool a_hovered)
 	{
 		if (!a_hovered) {
 			return ImGui::GetColorU32(LabelGrey());
 		}
-		return ImGui::GetColorU32(g_skin == Theme::Skin::kModern ? ImGuiCol_CheckMark : ImGuiCol_Text);
+		return ImGui::GetColorU32(ImGuiCol_Text);
 	}
 
 	// A link's click area at the cursor, `a_size` (screen pixels, at least 1 each way), with
@@ -2965,8 +3004,8 @@ namespace Theme
 
 	void DecorateWindow(bool a_popup)
 	{
-		if (g_skin == Skin::kVanilla && !a_popup) {
-			DrawVanillaFrame();
+		if (g_skin == Skin::kVanilla) {
+			DrawVanillaFrame(ImGui::GetColorU32(a_popup ? ImGuiCol_PopupBg : ImGuiCol_WindowBg));
 			return;
 		}
 		if (g_skin != Skin::kNordic) {
@@ -3017,6 +3056,19 @@ namespace Theme
 			return OutfitIconTexture(g_defaultIconKey) ? a_look.iconSide + kRowIconGap * g_scale : 0.0f;
 		}
 
+		// A named part's icon, its room's left edge at `a_x` on the line whose top is `a_top`.
+		void DrawRunIcon(ImDrawList* a_draw, const SubtitleRun& a_run, float a_x, float a_top, const RunLook& a_look, ImU32 a_color)
+		{
+			if (a_run.icon != HeadingIcon::kNone) {
+				DrawIconCentredOn(a_draw, a_run.icon, a_x, a_top + CapsMiddle(), a_look.iconSide, a_color, a_look.iconThick);
+			} else if (!a_run.rowIconKey.empty()) {
+				// Whole pixels, so the PNG stays sharp.
+				const float side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
+				const float midY = a_look.rowIconAsLine ? CapsMiddle() : ImGui::GetTextLineHeight() * 0.5f;
+				DrawTintedOutfitIcon(a_draw, a_run.rowIconKey, ImVec2(a_x, std::round(a_top + midY - side * 0.5f)), side, a_color);
+			}
+		}
+
 		// The parts on one line, at the cursor; the last name's cut leaves whatever still does
 		// not fit to the window's clipping.
 		// Contract: in the font the line is laid out in, with ItemSpacing the gap below it.
@@ -3040,14 +3092,7 @@ namespace Theme
 			float        x = topLeft.x;
 			for (const auto& run : a_runs) {
 				const bool named = run.icon != HeadingIcon::kNone || !run.rowIconKey.empty();
-				if (run.icon != HeadingIcon::kNone) {
-					DrawIconCentredOn(draw, run.icon, x, topLeft.y + CapsMiddle(), a_look.iconSide, ImGui::GetColorU32(emphasis), a_look.iconThick);
-				} else if (named) {
-					// Whole pixels, so the PNG stays sharp.
-					const float side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
-					const float midY = a_look.rowIconAsLine ? CapsMiddle() : lineHeight * 0.5f;
-					DrawTintedOutfitIcon(draw, run.rowIconKey, ImVec2(x, std::round(topLeft.y + midY - side * 0.5f)), side, ImGui::GetColorU32(emphasis));
-				}
+				DrawRunIcon(draw, run, x, topLeft.y, a_look, ImGui::GetColorU32(emphasis));
 				x += RunIconRoom(run, a_look);
 
 				const ImVec2 size = ImGui::CalcTextSize(run.text);
@@ -3198,6 +3243,174 @@ namespace Theme
 		DrawRuns(a_parts, { ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true, a_plainNames });  // 1px lines at 1080p
 	}
 
+	// Laid out twice: once to find the lines and the widest, so the item claims its size before
+	// the drawing, and once to draw.
+	void RunTextWrapped(std::span<const SubtitleRun> a_parts)
+	{
+		struct Piece
+		{
+			std::size_t      part;
+			std::string_view text;
+			float            iconRoom;  // a name's, on its piece
+			float            width;     // the icon's room and the text's
+		};
+		const RunLook look{ ImGui::GetColorU32(ImGuiCol_Text), kHeadingIconSide * g_scale, (std::max)(1.0f, g_scale), true, true };  // 1px lines at 1080p
+		// A plain part's pieces end after each space; a name is one piece.
+		std::vector<Piece> pieces;
+		for (std::size_t i = 0; i < a_parts.size(); ++i) {
+			const auto&            part = a_parts[i];
+			const std::string_view text = part.text;
+			if (part.icon != HeadingIcon::kNone || !part.rowIconKey.empty()) {
+				const float room = RunIconRoom(part, look);
+				pieces.push_back({ i, text, room, room + ImGui::CalcTextSize(text.data(), text.data() + text.size()).x });
+				continue;
+			}
+			for (std::size_t at = 0; at < text.size();) {
+				const auto        space = text.find(' ', at);
+				const std::size_t end = space == std::string_view::npos ? text.size() : space + 1;
+				const auto        piece = text.substr(at, end - at);
+				pieces.push_back({ i, piece, 0.0f, ImGui::CalcTextSize(piece.data(), piece.data() + piece.size()).x });
+				at = end;
+			}
+		}
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		const float  wrap = ImGui::CalcWrapWidthForPos(origin, (std::max)(0.0f, ImGui::GetCurrentWindow()->DC.TextWrapPos));
+		const float  lineHeight = ImGui::GetTextLineHeight();
+		const float  spaceWidth = ImGui::CalcTextSize(" ").x;
+		// Calls `a_place(piece, x, line)` for each piece; returns the lines and the widest. A
+		// word, the pieces up to one ending in a space, goes to the next line when it would pass
+		// the edge, its trailing space left hanging.
+		const auto layOut = [&](auto&& a_place) {
+			float x = 0.0f;
+			float widest = 0.0f;
+			int   line = 0;
+			for (std::size_t p = 0; p < pieces.size();) {
+				std::size_t end = p;
+				float       width = 0.0f;
+				do {
+					width += pieces[end].width;
+				} while (!pieces[end++].text.ends_with(' ') && end < pieces.size());
+				const float hanging = pieces[end - 1].text.ends_with(' ') ? spaceWidth : 0.0f;
+				if (x > 0.0f && x + width - hanging > wrap) {
+					++line;
+					x = 0.0f;
+				}
+				for (; p < end; ++p) {
+					a_place(pieces[p], x, line);
+					x += pieces[p].width;
+				}
+				widest = (std::max)(widest, (std::min)(x - hanging, wrap));
+			}
+			return std::pair{ line + 1, widest };
+		};
+		const auto [lines, widest] = layOut([](const Piece&, float, int) {});
+		ImGui::Dummy(ImVec2(widest, static_cast<float>(lines) * lineHeight));
+
+		auto*       draw = ImGui::GetWindowDrawList();
+		const ImU32 emphasis = ImGui::GetColorU32(EmphasisColor(false));
+		const float right = origin.x + wrap;
+		layOut([&](const Piece& a_piece, float a_x, int a_line) {
+			const auto&  part = a_parts[a_piece.part];
+			const bool   named = part.icon != HeadingIcon::kNone || !part.rowIconKey.empty();
+			const ImVec2 at(origin.x + a_x, origin.y + static_cast<float>(a_line) * lineHeight);
+			if (named) {
+				DrawRunIcon(draw, part, at.x, at.y, look, emphasis);
+			}
+			const float  left = at.x + a_piece.iconRoom;
+			const char*  begin = a_piece.text.data();
+			const char*  end = begin + a_piece.text.size();
+			const ImVec2 size = ImGui::CalcTextSize(begin, end);
+			if (named && left + size.x > right) {
+				ImGui::PushStyleColor(ImGuiCol_Text, EmphasisColor(false));  // RenderTextEllipsis draws in the text colour
+				ImGui::RenderTextEllipsis(draw, ImVec2(left, at.y), ImVec2(right, at.y + size.y), right, begin, end, &size);
+				ImGui::PopStyleColor();
+			} else {
+				draw->AddText(ImVec2(left, at.y), named ? emphasis : look.plain, begin, end);
+			}
+		});
+	}
+
+	namespace
+	{
+		// `a_text`, the runs' texts joined, laid out wrapped to `a_wrapWidth` in the current
+		// font as TextWrapped lays it out: calls `a_piece(run, begin, end, offset, width)` for
+		// each part of a run on one line, `offset` its top left from the text's. Returns the
+		// number of lines.
+		template <class Piece>
+		int LayOutLinkRuns(std::span<const LinkRun> a_runs, std::string_view a_text, float a_wrapWidth, Piece&& a_piece)
+		{
+			auto*       font = ImGui::GetFont();
+			const float size = ImGui::GetFontSize();
+			const float lineHeight = ImGui::GetTextLineHeight();
+			const char* begin = a_text.data();
+			const char* end = begin + a_text.size();
+			std::size_t run = 0;
+			std::size_t runEnd = a_runs.empty() ? 0 : std::strlen(a_runs[0].text);
+			int         lines = 0;
+			for (const char* line = begin; line < end; ++lines) {
+				const char* lineEnd = font->CalcWordWrapPosition(size, line, end, a_wrapWidth);
+				if (lineEnd <= line) {
+					lineEnd = line + 1;  // ImGui puts at least a character on a line; never loop on none
+				}
+				float x = 0.0f;
+				for (const char* at = line; at < lineEnd;) {
+					while (begin + runEnd <= at) {  // empty runs too
+						runEnd += std::strlen(a_runs[++run].text);
+					}
+					const char* pieceEnd = (std::min)(lineEnd, begin + runEnd);
+					const float width = font->CalcTextSizeA(size, FLT_MAX, 0.0f, at, pieceEnd).x;
+					a_piece(run, at, pieceEnd, ImVec2(x, static_cast<float>(lines) * lineHeight), width);
+					x += width;
+					at = pieceEnd;
+				}
+				line = ImTextCalcWordWrapNextLineStart(lineEnd, end);
+			}
+			return lines;
+		}
+	}
+
+	// Laid out twice: once to find the run under the mouse, so the drawing knows which to
+	// light, and once to draw.
+	int RunLinks(std::span<const LinkRun> a_runs, bool a_lit, int* a_hovered)
+	{
+		std::string text;
+		for (const auto& run : a_runs) {
+			text += run.text;
+		}
+		const ImVec2 origin = ImGui::GetCursorScreenPos();
+		const float  wrapWidth = (std::max)(1.0f, ImGui::GetContentRegionAvail().x);
+		const float  lineHeight = ImGui::GetTextLineHeight();
+		const ImVec2 mouse = ImGui::GetIO().MousePos;
+		int          under = -1;
+		const int    lines = LayOutLinkRuns(a_runs, text, wrapWidth, [&](std::size_t a_run, const char*, const char*, ImVec2 a_offset, float a_width) {
+			const ImVec2 topLeft(origin.x + a_offset.x, origin.y + a_offset.y);
+			if (a_runs[a_run].link && ImRect(topLeft, ImVec2(topLeft.x + a_width, topLeft.y + lineHeight)).Contains(mouse)) {
+				under = static_cast<int>(a_run);
+			}
+		});
+		const bool   pressed = ImGui::InvisibleButton("##RunLinks", ImVec2(wrapWidth, (std::max)(1.0f, static_cast<float>(lines) * lineHeight)));
+		const int    hovered = ImGui::IsItemHovered() ? under : -1;
+		if (a_hovered) {
+			*a_hovered = hovered;
+		}
+
+		auto*       draw = ImGui::GetWindowDrawList();
+		const ImU32 plain = ImGui::GetColorU32(ImGuiCol_Text);
+		const ImU32 lit = LinkColor(true);
+		const float underlineY = std::round(ImGui::GetFontBaked()->Ascent + g_scale);  // 1px under the baseline at 1080p
+		const float thick = (std::max)(1.0f, std::round(g_scale));
+		LayOutLinkRuns(a_runs, text, wrapWidth, [&](std::size_t a_run, const char* a_begin, const char* a_end, ImVec2 a_offset, float a_width) {
+			const ImVec2 at(origin.x + a_offset.x, origin.y + a_offset.y);
+			const bool   on = a_lit && static_cast<int>(a_run) == hovered;
+			const ImU32  own = a_runs[a_run].color != 0 ? ImGui::GetColorU32(a_runs[a_run].color) : plain;  // the style alpha applied, as to the text colour
+			draw->AddText(at, on ? lit : own, a_begin, a_end);
+			if (on) {
+				draw->AddRectFilled(ImVec2(at.x, at.y + underlineY), ImVec2(at.x + a_width, at.y + underlineY + thick), lit);
+			}
+		});
+		return pressed ? hovered : -1;
+	}
+
 	float HeadingTabsWidth(std::span<const char* const> a_labels)
 	{
 		const bool  ownFont = PushHeadingFont();
@@ -3330,16 +3543,23 @@ namespace Theme
 		const float  side = ImGui::GetFontSize();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
 
-		if (a_line == LinkLine::kNext) {
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kNextLineGap * g_scale);
-		} else {
+		const bool atLeft = a_line == LinkLine::kNextLeft;
+		if (a_line == LinkLine::kSame) {
 			ImGui::SameLine();
+		} else {
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + kNextLineGap * g_scale);
 		}
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		if (!atLeft) {
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		}
 		const ImVec2 topLeft = ImGui::GetCursorScreenPos();
-		PushLabelSpacing();  // the line's gap below stays LabelText's
+		if (!atLeft) {
+			PushLabelSpacing();  // the line's gap below stays LabelText's
+		}
 		const bool clicked = ImGui::InvisibleButton(a_afterIcon ? a_afterIcon : a_label, ImVec2(width, (std::max)(side, text.y)), ImGuiButtonFlags_EnableNav);
-		ImGui::PopStyleVar();
+		if (!atLeft) {
+			ImGui::PopStyleVar();
+		}
 
 		const bool  hovered = ImGui::IsItemHovered();
 		const ImU32 color = LinkColor(hovered);
@@ -3375,9 +3595,10 @@ namespace Theme
 
 	// LabelLink's place and lighting with no plus mark, the help mark inside the click area:
 	// on a label's line (`a_labelLine`) at its top, keeping its gap below; on a control's
-	// line centred on the line's height, keeping the control's gap. At the line's right end.
-	// With `a_hovered` null, no help mark.
-	bool RightEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine)
+	// line centred on the line's height, keeping the control's gap. At the line's right end, or
+	// with `a_left` at its left end, where ImGui starts a line's first item, whatever the line
+	// holds already. With `a_hovered` null, no help mark.
+	bool LineEndHelpLink(const char* a_label, bool* a_hovered, bool a_labelLine, bool a_left = false)
 	{
 		PushSmallFont();
 		const ImVec2 text = ImGui::CalcTextSize(a_label);
@@ -3386,7 +3607,12 @@ namespace Theme
 		const float  width = help ? markX + ImGui::CalcTextSize(kHelpMark).x : text.x;
 
 		ImGui::SameLine();
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		if (a_left) {
+			const auto* window = ImGui::GetCurrentWindow();
+			ImGui::SetCursorScreenPos(ImVec2(std::floor(window->Pos.x + window->DC.Indent.x + window->DC.ColumnsOffset.x), window->DC.CursorPos.y));
+		} else {
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - width));
+		}
 		if (!a_labelLine) {
 			// After SameLine the current line's size is the size of what is on it so far.
 			const float lineHeight = ImGui::GetCurrentWindow()->DC.CurrLineSize.y;
@@ -3409,17 +3635,45 @@ namespace Theme
 
 	bool LabelHelpLink(const char* a_label, bool* a_hovered)
 	{
-		return RightEndHelpLink(a_label, a_hovered, true);
+		return LineEndHelpLink(a_label, a_hovered, true);
 	}
 
 	bool LineHelpLink(const char* a_label, bool* a_hovered)
 	{
-		return RightEndHelpLink(a_label, a_hovered, false);
+		return LineEndHelpLink(a_label, a_hovered, false);
 	}
 
 	bool LineLink(const char* a_label)
 	{
-		return RightEndHelpLink(a_label, nullptr, false);
+		return LineEndHelpLink(a_label, nullptr, false);
+	}
+
+	bool LeftLineLink(const char* a_label)
+	{
+		return LineEndHelpLink(a_label, nullptr, false, true);
+	}
+
+	// Placed from the label's own top, never the line's height: what was laid out before the
+	// label may have left the line taller than it (a combo's preview does), and the two fonts
+	// differ in Nordic. Whole pixels, as text is drawn from one, so the two never part by a
+	// pixel from line to line. The click area reaches down as far as a link at the label's top
+	// would, so the line is as tall as with LineLink.
+	bool LabelLineLink(const char* a_label)
+	{
+		PushLabelFont();
+		const float labelCaps = CapsMiddle();
+		ImGui::PopFont();
+		PushSmallFont();
+		const ImVec2 text = ImGui::CalcTextSize(a_label);
+		const float  rise = (std::max)(0.0f, std::round(CapsMiddle() - labelCaps));  // the link's top above the label's
+
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (std::max)(0.0f, ImGui::GetContentRegionAvail().x - text.x));
+		const ImVec2 lineTop = ImGui::GetCursorScreenPos();
+		ImGui::SetCursorScreenPos(ImVec2(lineTop.x, std::floor(lineTop.y) - rise));
+		const bool clicked = LinkButton(a_label, ImVec2(text.x, text.y + rise));
+		ImGui::PopFont();
+		return clicked;
 	}
 
 	float LineHelpLinkWidth(const char* a_label)
@@ -3825,6 +4079,11 @@ namespace Theme
 		return ErrorRed();
 	}
 
+	unsigned PositiveColor()
+	{
+		return PaletteColor(g_palette.positive);
+	}
+
 	bool BeginCombo(const char* a_id, int a_flags, const FieldStyle& a_style)
 	{
 		// The popup takes the window padding and border colour in force as BeginCombo opens it.
@@ -3859,7 +4118,7 @@ namespace Theme
 		if (!HasCustomDropdownArrow()) {
 			return text + FieldHeight(field);  // ImGui's square arrow button
 		}
-		const float right = field.shape == FieldShape::kBoxed ? style.FramePadding.x : 0.0f;
+		const float right = HasSidePadding(field) ? style.FramePadding.x : 0.0f;
 		return text + style.ItemInnerSpacing.x + DropdownArrowSize().x + right;
 	}
 
@@ -3944,6 +4203,38 @@ namespace Theme
 		ImGui::PopStyleVar();
 	}
 
+	// Always one push, the style's own border in Modern, so every push has its pop. A modal
+	// takes the style's window padding, the main window's, without a push.
+	void PushModalStyle()
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, g_skin == Skin::kModern ? ImGui::GetStyle().PopupBorderSize : 0.0f);
+	}
+
+	void PopModalStyle()
+	{
+		ImGui::PopStyleVar();
+	}
+
+	bool BeginScrollArea(const char* a_id, float a_maxHeight)
+	{
+		// The bar's room is always kept, past the content in the window's right padding, so the
+		// content is as wide as the window's whether or not the bar shows.
+		const float width = ImGui::GetContentRegionAvail().x + ImGui::GetStyle().ScrollbarSize;
+		g_areaFadeId = ImGui::GetID(a_id);
+		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, a_maxHeight));
+		const int  colors = PushScrollbarColors(g_areaFadeId);
+		const bool visible = ImGui::BeginChild(a_id, ImVec2(width, 0.0f), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_NavFlattened,
+			ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysVerticalScrollbar);
+		ImGui::PopStyleColor(colors);
+		return visible;
+	}
+
+	void EndScrollArea()
+	{
+		DrawSkinScrollbar(UpdateScrollbarFade(g_areaFadeId));
+		ImGui::EndChild();
+	}
+
 	float ListPaddingY()
 	{
 		// The piece list's row gap, whatever item spacing a list's rows push.
@@ -4009,14 +4300,19 @@ namespace Theme
 		return ImGui::GetTextLineHeight() + kSelectRowPadY * 2.0f * g_scale;
 	}
 
-	bool SelectRow(const char* a_label, bool a_selected)
+	bool SelectRow(const char* a_label, bool a_selected, const RowIcon* a_icon)
 	{
-		const ListRow row = LayOutListRow(a_label, SelectRowHeight());
-		const float   textX = row.min.x + row.inset + RowTextShift();
+		const float   height = SelectRowHeight();
+		const ListRow row = LayOutListRow(a_label, height);
+		float         textX = row.min.x + row.inset + RowTextShift();
 		auto*         draw = ImGui::GetWindowDrawList();
 		DrawRowFills(draw, row.fillMin, row.fillMax, a_selected, row.hovered, 0.0f);
 		if (a_selected) {
 			DrawSelectMark(draw, row, textX);
+		}
+		if (a_icon) {
+			DrawRowIcon(draw, textX, row.min.y + height * 0.5f, *a_icon);
+			textX += RowIconRoom();
 		}
 		draw->AddText(ImVec2(textX, row.min.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
 		return row.pressed;
@@ -4034,6 +4330,18 @@ namespace Theme
 			textX += RowIconRoom();
 		}
 		draw->AddText(ImVec2(textX, cursor.y + kSelectRowPadY * g_scale), ImGui::GetColorU32(ImGuiCol_Text), a_label);
+	}
+
+	void IconText(const char* a_text, const RowIcon& a_icon)
+	{
+		const float  side = OutfitIconSide();
+		const float  room = g_rowIcons.empty() ? 0.0f : side + kRowIconGap * g_scale;
+		const ImVec2 cursor = ImGui::GetCursorScreenPos();
+		const ImVec2 text = ImGui::CalcTextSize(a_text);
+		ImGui::Dummy(ImVec2(room + text.x, text.y));
+		auto* draw = ImGui::GetWindowDrawList();
+		DrawRowIcon(draw, cursor.x, cursor.y + text.y * 0.5f, a_icon, side);
+		draw->AddText(ImVec2(cursor.x + room, cursor.y), ImGui::GetColorU32(ImGuiCol_Text), a_text);
 	}
 
 	// The rule after a ListHeading's text, kTextRuleGap past `a_textRight`, to kRuleEndPad short of
@@ -4170,11 +4478,12 @@ namespace Theme
 			DrawIconCentredOn(draw, a_look.icon, starX, midY, iconSide, nameColor, thick);
 		}
 		draw->AddText(ImVec2(textX, textY), nameColor, a_name);
-		bool warningHovered = false;
 		if (a_look.warning) {
 			const IconFrame frame{ ImVec2(warningX, midY - iconSide * 0.5f), iconSide };
 			DrawWarningIcon(draw, frame, ErrorColor(), thick);
-			warningHovered = selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+			if (a_look.warningHovered) {
+				*a_look.warningHovered = selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+			}
 		}
 		if (a_look.random) {
 			DrawDiceIcon(draw, IconFrame{ ImVec2(diceLeft, midY - diceSide * 0.5f), diceSide }, a_look.diceButton && diceHovered ? LinkColor(true) : grey, thick);
@@ -4199,8 +4508,6 @@ namespace Theme
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
-		} else if (warningHovered) {
-			Tooltip(a_look.warning);
 		} else if (a_look.nameTip && selectHovered && ImGui::IsMouseHoveringRect(ImVec2(starX, cursor.y), ImVec2(nameRight, cursor.y + height))) {
 			Tooltip(a_look.nameTip);
 		}
@@ -4406,7 +4713,7 @@ namespace Theme
 		const float  side = ImGui::GetTextLineHeight();
 		const float  marksRight = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
 		const ImVec2 markCentre(marksRight, textY + side * 0.5f);
-		const int    marks = DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
+		DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
 		const float  nameRight = marksRight - OutfitMarksWidth(a_marks);
 		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
@@ -4415,12 +4722,12 @@ namespace Theme
 		} else if (nameRight > nameX) {
 			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
+		std::array<const char*, 3> tooltips{};
+		const int                  marks = OutfitMarkTooltips(a_marks, tooltips);
 		for (int i = 0; i < marks; ++i) {
 			const float right = marksRight - static_cast<float>(i) * (side + kOutfitMarkGap * g_scale);
 			if (ImGui::IsMouseHoveringRect(ImVec2(right - side, textY), ImVec2(right, textY + side))) {
-				// From the right: the star first when both are drawn, the form mark last.
-				const bool star = a_marks.situations && i == 0;
-				Theme::Tooltip(star ? a_marks.situations : FormMarkTooltip(a_marks));
+				Theme::Tooltip(tooltips[static_cast<std::size_t>(i)]);
 			}
 		}
 		return row.pressed;

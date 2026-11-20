@@ -400,7 +400,8 @@ namespace Theme
 		unsigned    color = 0;
 	};
 
-	// Body text made of `runs`, wrapped to the content width as TextWrapped wraps it, each run
+	// Body text made of `runs`, wrapped at the text wrap position pushed, else to the content
+	// width, as TextWrapped wraps it, each run
 	// in its colour; a link run under the mouse is the one hovered, and with `lit` it is drawn
 	// in LinkColor's lit colour and underlined. Returns the index of the link run clicked, or
 	// -1; `hovered` (if any) gets the one hovered, or -1. Not reached by keyboard or
@@ -477,6 +478,9 @@ namespace Theme
 		// became a drag does nothing.
 		bool grip = false;
 		bool alert = false;  // the name in ErrorColor
+		// The name's and the icon's colour, packed as ImGui's ImU32 (the style alpha applied);
+		// 0 for the text colour. `alert` wins over it, it over `dim`.
+		unsigned nameColor = 0;
 		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
 		// mark, a square 4px short of the name's line height. Its tooltip is the caller's:
 		// `warningHovered` (if any) is set to whether the mark is hovered, or the part left of the
@@ -486,6 +490,9 @@ namespace Theme
 		// Shown while the mouse is over the icon or the name, the heading's height tall, or while the
 		// part left of the chevron has the keyboard focus and no warning mark shows; null for none.
 		const char* nameTip = nullptr;
+		// `nameHovered` (if any) is set to whether `nameTip` would show now (the die's tip wins),
+		// so the caller can draw a tooltip of its own in its place.
+		bool* nameHovered = nullptr;
 	};
 
 	// A situation's heading in Manage Situations' Situation List, SituationHeadingHeight tall:

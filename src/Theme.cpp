@@ -3441,7 +3441,9 @@ namespace Theme
 			text += run.text;
 		}
 		const ImVec2 origin = ImGui::GetCursorScreenPos();
-		const float  wrapWidth = (std::max)(1.0f, ImGui::GetContentRegionAvail().x);
+		// At the text wrap position pushed (a tooltip's), else the content width.
+		const float  pushedWrap = ImGui::GetCurrentWindow()->DC.TextWrapPos;
+		const float  wrapWidth = (std::max)(1.0f, pushedWrap >= 0.0f ? ImGui::CalcWrapWidthForPos(origin, pushedWrap) : ImGui::GetContentRegionAvail().x);
 		const float  lineHeight = ImGui::GetTextLineHeight();
 		const ImVec2 mouse = ImGui::GetIO().MousePos;
 		int          under = -1;
@@ -4538,8 +4540,12 @@ namespace Theme
 			DrawSelectMark(draw, nameLine, starX);
 		}
 		const ImU32 grey = ImGui::GetColorU32(ImGuiCol_TextDisabled);
-		const ImU32 nameColor = a_look.alert ? ErrorColor() : a_look.dim ? grey :
-		                                                                   ImGui::GetColorU32(ImGuiCol_Text);
+		ImU32       nameColor = a_look.dim ? grey : ImGui::GetColorU32(ImGuiCol_Text);
+		if (a_look.alert) {
+			nameColor = ErrorColor();
+		} else if (a_look.nameColor != 0) {
+			nameColor = ImGui::GetColorU32(a_look.nameColor);
+		}
 		const float thick = (std::max)(1.0f, kLineWidth * g_scale);
 		if (a_look.grip && (selectHovered || foldHovered || diceHovered || editHovered || held != 0)) {
 			DrawGrip(draw, fillMin.x, midY, Grip::kName);  // where the rows' dots under it are
@@ -4576,6 +4582,9 @@ namespace Theme
 		const float ruleEnd = a_look.random ? diceLeft + diceSide * kDiceInset : editX;  // the die's outline, or Edit's text
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
 		const bool nameHovered = selectFocused ? !a_look.warning : selectHovered && ImGui::IsMouseHoveringRect(ImVec2(starX, cursor.y), ImVec2(nameRight, cursor.y + height));
+		if (a_look.nameHovered) {
+			*a_look.nameHovered = nameHovered && !(diceHovered && a_look.diceTip);
+		}
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
 		} else if (a_look.nameTip && nameHovered) {

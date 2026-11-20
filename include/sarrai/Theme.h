@@ -478,10 +478,12 @@ namespace Theme
 		bool alert = false;  // the name in ErrorColor
 		// A warning mark after the name and its count, in ErrorColor: a circle with an exclamation
 		// mark, a square 4px short of the name's line height. Its tooltip is the caller's:
-		// `warningHovered` (if any) is set to whether the mark is hovered.
+		// `warningHovered` (if any) is set to whether the mark is hovered, or the part left of the
+		// chevron has the keyboard focus.
 		bool  warning = false;
 		bool* warningHovered = nullptr;
-		// Shown while the mouse is over the icon or the name, the heading's height tall; null for none.
+		// Shown while the mouse is over the icon or the name, the heading's height tall, or while the
+		// part left of the chevron has the keyboard focus and no warning mark shows; null for none.
 		const char* nameTip = nullptr;
 	};
 

@@ -4432,8 +4432,11 @@ namespace Theme
 		ImGui::SetCursorScreenPos(ImVec2(left, cursor.y));
 		bool       select = part("##select", foldLeft - left, height);
 		const bool selectHovered = ImGui::IsItemHovered();
-		bool       fold = false;
-		bool       foldHovered = false;
+		// Hovered as the keyboard or controller focus, which has no point on the mark or the name.
+		const auto& g = *ImGui::GetCurrentContext();
+		const bool  selectFocused = selectHovered && g.NavHighlightItemUnderNav && g.NavCursorVisible;
+		bool        fold = false;
+		bool        foldHovered = false;
 		if (a_look.foldable) {
 			ImGui::SameLine(0.0f, 0.0f);
 			fold = part("##fold", diceAreaLeft - foldLeft, height);
@@ -4482,7 +4485,7 @@ namespace Theme
 			const IconFrame frame{ ImVec2(warningX, midY - iconSide * 0.5f), iconSide };
 			DrawWarningIcon(draw, frame, ErrorColor(), thick);
 			if (a_look.warningHovered) {
-				*a_look.warningHovered = selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f));
+				*a_look.warningHovered = selectFocused || (selectHovered && ImGui::IsMouseHoveringRect(frame.At(0.0f, 0.0f), frame.At(1.0f, 1.0f)));
 			}
 		}
 		if (a_look.random) {
@@ -4506,9 +4509,10 @@ namespace Theme
 		const float ruleLeft = (a_look.foldable ? chevronX + side : textRight) + kTextRuleGap * g_scale;
 		const float ruleEnd = a_look.random ? diceLeft + diceSide * kDiceInset : editX;  // the die's outline, or Edit's text
 		DrawTextRule(draw, ruleLeft, ruleEnd - kTextRuleGap * g_scale, midY);
+		const bool nameHovered = selectFocused ? !a_look.warning : selectHovered && ImGui::IsMouseHoveringRect(ImVec2(starX, cursor.y), ImVec2(nameRight, cursor.y + height));
 		if (diceHovered && a_look.diceTip) {
 			Tooltip(a_look.diceTip);
-		} else if (a_look.nameTip && selectHovered && ImGui::IsMouseHoveringRect(ImVec2(starX, cursor.y), ImVec2(nameRight, cursor.y + height))) {
+		} else if (a_look.nameTip && nameHovered) {
 			Tooltip(a_look.nameTip);
 		}
 		if (dice) {

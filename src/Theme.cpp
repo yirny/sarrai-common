@@ -4201,6 +4201,8 @@ namespace Theme
 			Tooltip(a_look.diceTip);
 		} else if (warningHovered) {
 			Tooltip(a_look.warning);
+		} else if (a_look.nameTip && selectHovered && ImGui::IsMouseHoveringRect(ImVec2(starX, cursor.y), ImVec2(nameRight, cursor.y + height))) {
+			Tooltip(a_look.nameTip);
 		}
 		if (dice) {
 			return HeadingClick::kDice;

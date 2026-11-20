@@ -188,16 +188,16 @@ namespace
 		float       windowsRatio;  // the size of the letters Windows' fonts draw, of the font's own
 	};
 
-	// Oswald is small for its size, so Vanilla's sizes are larger and Windows' fonts are drawn
-	// smaller beside it.
+	// Windows' fonts look large beside Jost and Oswald, so they are drawn smaller; Oswald is
+	// small for its size (hence Vanilla's larger sizes), so more so beside it.
 	constexpr SkinFonts kModernFonts{ "Modern",
 		{ L"Jost-400-Book.ttf", 20.0f, L"segoeui.ttf" },
 		{ L"Jost-500-Medium.ttf", 26.0f, L"seguisb.ttf" },
-		1.0f };
+		22.0f / 24.0f };
 	constexpr SkinFonts kVanillaFonts{ "Vanilla",
 		{ L"Oswald-Regular.ttf", 24.0f, L"segoeui.ttf" },
 		{ L"Oswald-SemiBold.ttf", 30.0f, L"seguisb.ttf" },
-		22.0f / 24.0f };
+		20.0f / 24.0f };
 	constexpr SkinFonts kNordicFonts{ "Nordic",
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
 		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" },

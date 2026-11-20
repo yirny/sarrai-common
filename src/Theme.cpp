@@ -185,17 +185,23 @@ namespace
 		const char* skin;  // for the log
 		FontFile    body;
 		FontFile    heading;
+		float       windowsRatio;  // the size of the letters Windows' fonts draw, of the font's own
 	};
 
+	// Oswald is small for its size, so Vanilla's sizes are larger and Windows' fonts are drawn
+	// smaller beside it.
 	constexpr SkinFonts kModernFonts{ "Modern",
 		{ L"Jost-400-Book.ttf", 20.0f, L"segoeui.ttf" },
-		{ L"Jost-500-Medium.ttf", 26.0f, L"seguisb.ttf" } };
+		{ L"Jost-500-Medium.ttf", 26.0f, L"seguisb.ttf" },
+		1.0f };
 	constexpr SkinFonts kVanillaFonts{ "Vanilla",
 		{ L"Oswald-Regular.ttf", 24.0f, L"segoeui.ttf" },
-		{ L"Oswald-SemiBold.ttf", 30.0f, L"seguisb.ttf" } };
+		{ L"Oswald-SemiBold.ttf", 30.0f, L"seguisb.ttf" },
+		22.0f / 24.0f };
 	constexpr SkinFonts kNordicFonts{ "Nordic",
 		{ L"Sovngarde-Light.ttf", 20.0f, L"segoeuil.ttf" },
-		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" } };
+		{ L"Sovngarde-Bold.ttf", 26.0f, L"segoeuib.ttf" },
+		1.0f };
 	// The font size Vanilla's row icons are sized by (pixels at 1080p): its body font's before
 	// it grew to 24px, so the icons stayed as they were (RowIconSide, OutfitIconSide).
 	constexpr float kVanillaIconFontSize = 22.0f;
@@ -359,7 +365,9 @@ namespace
 	// Letters the last added font lacks come from Windows: Segoe UI at a close
 	// weight (Cyrillic, Greek), then Chinese, Japanese and Korean with Windows'
 	// display language first, since they draw shared characters differently.
-	void MergeWindowsFonts(const wchar_t* a_segoe)
+	// Contract: a_size is in the last added font's pixels, 0 for that font's own size; ImGui
+	// draws a merged font at its size over that font's, whatever size the text is pushed at.
+	void MergeWindowsFonts(const wchar_t* a_segoe, float a_size)
 	{
 		wchar_t    windows[MAX_PATH]{};
 		const auto length = ::GetWindowsDirectoryW(windows, MAX_PATH);
@@ -367,7 +375,7 @@ namespace
 			return;
 		}
 		const auto folder = std::filesystem::path(windows) / L"Fonts";
-		auto       merge = [&](std::initializer_list<const wchar_t*> a_files) { AddFont(FirstFont(folder, a_files), 0.0f, true); };
+		auto       merge = [&](std::initializer_list<const wchar_t*> a_files) { AddFont(FirstFont(folder, a_files), a_size, true); };
 
 		merge({ a_segoe, L"segoeui.ttf" });
 		using Files = std::initializer_list<const wchar_t*>;
@@ -390,11 +398,11 @@ namespace
 		}
 	}
 
-	ImFont* LoadFont(const std::filesystem::path& a_folder, const FontFile& a_file)
+	ImFont* LoadFont(const std::filesystem::path& a_folder, const FontFile& a_file, float a_windowsRatio)
 	{
 		auto* font = AddFont(ReadFont(a_folder / a_file.name), a_file.size, false);
 		if (font) {
-			MergeWindowsFonts(a_file.segoe);
+			MergeWindowsFonts(a_file.segoe, a_file.size * a_windowsRatio);
 		}
 		return font;
 	}
@@ -404,8 +412,8 @@ namespace
 		const auto& files = FontFilesOf(a_skin);
 		auto&       loaded = LoadedFontsOf(a_skin);
 		const auto  folder = std::filesystem::current_path() / a_fontFolder;
-		loaded.body = LoadFont(folder, files.body);
-		loaded.heading = LoadFont(folder, files.heading);
+		loaded.body = LoadFont(folder, files.body, files.windowsRatio);
+		loaded.heading = LoadFont(folder, files.heading, files.windowsRatio);
 		if (loaded.body && loaded.heading) {
 			logger::info("{} fonts loaded", files.skin);
 		} else {
@@ -2876,7 +2884,7 @@ namespace Theme
 		// Same face ImGui picks by itself at this window's sizes; also stands in
 		// for any skin whose font files are missing.
 		g_defaultFont = ImGui::GetIO().Fonts->AddFontDefaultVector();
-		MergeWindowsFonts(L"segoeui.ttf");
+		MergeWindowsFonts(L"segoeui.ttf", 0.0f);
 
 		LoadSkinFonts(Skin::kModern, a_fontFolder);
 		LoadSkinFonts(Skin::kVanilla, a_fontFolder);

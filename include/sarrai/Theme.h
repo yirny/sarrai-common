@@ -289,6 +289,7 @@ namespace Theme
 		std::uint32_t    rgb = 0;            // the white icon's tint, 0xRRGGBB
 		HeadingIcon      line = {};          // OutfitRow only: this line drawing in the text colour, in place of `key`
 		bool             textColor = false;  // TickRow, SelectRow, TextRow, RemovableRow, IconText: tinted with the text colour, not `rgb`
+		bool             badge = false;      // OutfitRow, OutfitDragGhost, OutfitNameText, IconField: two overlapping squares over the icon's lower right corner
 	};
 	struct RowMark
 	{

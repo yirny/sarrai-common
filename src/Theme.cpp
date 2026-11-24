@@ -2785,23 +2785,40 @@ namespace
 		a_draw->AddImage(texture->Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), a_tint);
 	}
 
-	// RowIcon::badge over an icon `a_side` square at `a_topLeft`: two overlapping squares on its
-	// lower right corner, the back one outlined and the front one filled, in the text colour
-	// through the style alpha.
+	// RowIcon::badge over an icon `a_side` square at `a_topLeft`, half its side wide on its lower
+	// right corner: two stacked diamonds, a light blue one over a dark blue one, each outlined in
+	// near black, in fixed colours through the style alpha (a layers mark, drawn from its SVG).
 	void DrawIconBadge(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side)
 	{
-		constexpr float kBadgeRatio = 0.45f;    // the badge's side, of the icon's
-		constexpr float kSquareRatio = 0.7f;    // each square's side, of the badge's
+		constexpr float kBadgeRatio = 0.5f;     // the badge's width, of the icon's side
 		constexpr float kOverhangRatio = 0.1f;  // how far it reaches past the icon's corner, of the icon's side
+		// The SVG's units: its view box, its stroke width, the two diamonds' centres, and a diamond
+		// with trimmed tips about its centre, clockwise on screen from the left tip, as ImGui's
+		// anti-aliased fill needs.
+		constexpr float                  kArtWidth = 519.89f;
+		constexpr float                  kArtHeight = 486.3f;
+		constexpr float                  kArtStroke = 43.0f;
+		constexpr ImVec2                 kBackCentre{ 259.67f, 305.72f };
+		constexpr ImVec2                 kFrontCentre{ 259.67f, 181.03f };
+		constexpr std::array<ImVec2, 12> kDiamond{ ImVec2(-233.0f, 0.0f), ImVec2(-224.0f, -16.4f), ImVec2(-10.4f, -152.3f), ImVec2(0.0f, -155.3f),
+			ImVec2(10.4f, -152.3f), ImVec2(224.0f, -16.4f), ImVec2(233.0f, 0.0f), ImVec2(224.0f, 16.4f), ImVec2(10.4f, 152.3f), ImVec2(0.0f, 155.3f),
+			ImVec2(-10.4f, 152.3f), ImVec2(-224.0f, 16.4f) };
 
-		const float  badge = std::round(a_side * kBadgeRatio);
-		const float  square = std::round(badge * kSquareRatio);
-		const float  corner = a_side + std::round(a_side * kOverhangRatio) - badge;
-		const ImVec2 back(std::round(a_topLeft.x + corner), std::round(a_topLeft.y + corner));
-		const ImVec2 front(back.x + badge - square, back.y + badge - square);
-		const ImU32  color = ImGui::GetColorU32(ImGuiCol_Text);
-		a_draw->AddRect(back, ImVec2(back.x + square, back.y + square), color, 0.0f, 0, (std::max)(1.0f, g_scale));
-		a_draw->AddRectFilled(front, ImVec2(front.x + square, front.y + square), color);
+		const float  scale = std::round(a_side * kBadgeRatio) / kArtWidth;   // pixels per SVG unit
+		const float  corner = a_side + std::round(a_side * kOverhangRatio);  // the badge's lower right corner, from the icon's top left
+		const ImVec2 origin(std::round(a_topLeft.x + corner - kArtWidth * scale), std::round(a_topLeft.y + corner - kArtHeight * scale));
+		const float  thick = (std::max)(1.0f, kArtStroke * scale);
+		const ImU32  outline = ImGui::GetColorU32(IM_COL32(0x23, 0x1F, 0x20, 0xFF));
+		const auto   diamond = [&](ImVec2 a_centre, ImU32 a_fill) {
+			std::array<ImVec2, kDiamond.size()> points;
+			for (std::size_t i = 0; i < kDiamond.size(); ++i) {
+				points[i] = ImVec2(origin.x + (a_centre.x + kDiamond[i].x) * scale, origin.y + (a_centre.y + kDiamond[i].y) * scale);
+			}
+			a_draw->AddConvexPolyFilled(points.data(), static_cast<int>(points.size()), a_fill);
+			a_draw->AddPolyline(points.data(), static_cast<int>(points.size()), outline, ImDrawFlags_Closed, thick);
+		};
+		diamond(kBackCentre, ImGui::GetColorU32(IM_COL32(0x29, 0x44, 0x7F, 0xFF)));
+		diamond(kFrontCentre, ImGui::GetColorU32(IM_COL32(0x45, 0x76, 0xCE, 0xFF)));
 	}
 
 	// The white icon `a_icon` tinted with its colour, through the style alpha, under its badge
@@ -3135,9 +3152,13 @@ namespace Theme
 				DrawIconCentredOn(a_draw, a_run.icon, a_x, a_top + CapsMiddle(), a_look.iconSide, a_color, a_look.iconThick);
 			} else if (!a_run.rowIconKey.empty()) {
 				// Whole pixels, so the PNG stays sharp.
-				const float side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
-				const float midY = a_look.rowIconAsLine ? CapsMiddle() : ImGui::GetTextLineHeight() * 0.5f;
-				DrawTintedOutfitIcon(a_draw, a_run.rowIconKey, ImVec2(a_x, std::round(a_top + midY - side * 0.5f)), side, a_color);
+				const float  side = a_look.rowIconAsLine ? a_look.iconSide : OutfitIconSide();
+				const float  midY = a_look.rowIconAsLine ? CapsMiddle() : ImGui::GetTextLineHeight() * 0.5f;
+				const ImVec2 topLeft(a_x, std::round(a_top + midY - side * 0.5f));
+				DrawTintedOutfitIcon(a_draw, a_run.rowIconKey, topLeft, side, a_color);
+				if (a_run.badge) {
+					DrawIconBadge(a_draw, topLeft, side);
+				}
 			}
 		}
 

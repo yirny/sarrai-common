@@ -2785,12 +2785,12 @@ namespace
 		a_draw->AddImage(texture->Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), a_tint);
 	}
 
-	// RowIcon::badge over an icon `a_side` square at `a_topLeft`, half its side wide on its lower
+	// RowIcon::badge over an icon `a_side` square at `a_topLeft`, 0.6 of its side wide on its lower
 	// right corner: two stacked diamonds, a light blue one over a dark blue one, each outlined in
 	// near black, in fixed colours through the style alpha (a layers mark, drawn from its SVG).
 	void DrawIconBadge(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side)
 	{
-		constexpr float kBadgeRatio = 0.5f;     // the badge's width, of the icon's side
+		constexpr float kBadgeRatio = 0.6f;     // the badge's width, of the icon's side
 		constexpr float kOverhangRatio = 0.1f;  // how far it reaches past the icon's corner, of the icon's side
 		// The SVG's units: its view box, its stroke width, the two diamonds' centres, and a diamond
 		// with trimmed tips about its centre, clockwise on screen from the left tip, as ImGui's

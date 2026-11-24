@@ -2832,6 +2832,13 @@ namespace
 		}
 	}
 
+	// A name's colour: `a_rgb` (0xRRGGBB; RowIcon::nameRgb, SubtitleRun::rgb), or `a_otherwise`
+	// for 0. A style colour, so GetColorU32 and PushStyleColor bring the style alpha to it.
+	ImVec4 NameColor(std::uint32_t a_rgb, const ImVec4& a_otherwise)
+	{
+		return a_rgb ? ImGui::ColorConvertU32ToFloat4(IM_COL32((a_rgb >> 16) & 0xFF, (a_rgb >> 8) & 0xFF, a_rgb & 0xFF, 0xFF)) : a_otherwise;
+	}
+
 	// An outfit row's icon: a square of the text height (kVanillaIconFontSize in Vanilla).
 	float OutfitIconSide()
 	{
@@ -3191,13 +3198,14 @@ namespace Theme
 				const ImVec2 size = ImGui::CalcTextSize(run.text);
 				const float  cut = named ? (std::min)(over, (std::max)(0.0f, size.x - ImGui::CalcTextSize("...").x)) : 0.0f;
 				const float  right = x + size.x - cut;
+				const ImVec4 name = NameColor(run.rgb, emphasis);
 				over -= cut;
 				if (cut > 0.0f) {
-					ImGui::PushStyleColor(ImGuiCol_Text, emphasis);  // RenderTextEllipsis draws in the text colour
+					ImGui::PushStyleColor(ImGuiCol_Text, name);  // RenderTextEllipsis draws in the text colour
 					ImGui::RenderTextEllipsis(draw, ImVec2(x, topLeft.y), ImVec2(right, topLeft.y + size.y), right, run.text, nullptr, &size);
 					ImGui::PopStyleColor();
 				} else {
-					draw->AddText(ImVec2(x, topLeft.y), named ? ImGui::GetColorU32(emphasis) : a_look.plain, run.text);
+					draw->AddText(ImVec2(x, topLeft.y), named ? ImGui::GetColorU32(name) : a_look.plain, run.text);
 				}
 				x = right;
 			}
@@ -3476,12 +3484,13 @@ namespace Theme
 			const char*  begin = a_piece.text.data();
 			const char*  end = begin + a_piece.text.size();
 			const ImVec2 size = ImGui::CalcTextSize(begin, end);
+			const ImVec4 name = NameColor(part.rgb, EmphasisColor(false));
 			if (named && left + size.x > right) {
-				ImGui::PushStyleColor(ImGuiCol_Text, EmphasisColor(false));  // RenderTextEllipsis draws in the text colour
+				ImGui::PushStyleColor(ImGuiCol_Text, name);  // RenderTextEllipsis draws in the text colour
 				ImGui::RenderTextEllipsis(draw, ImVec2(left, at.y), ImVec2(right, at.y + size.y), right, begin, end, &size);
 				ImGui::PopStyleColor();
 			} else {
-				draw->AddText(ImVec2(left, at.y), named ? emphasis : look.plain, begin, end);
+				draw->AddText(ImVec2(left, at.y), named ? ImGui::GetColorU32(name) : look.plain, begin, end);
 			}
 		});
 	}
@@ -4933,11 +4942,13 @@ namespace Theme
 		}
 		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
+		ImGui::PushStyleColor(ImGuiCol_Text, NameColor(a_icon ? a_icon->nameRgb : 0, ImGui::GetStyleColorVec4(ImGuiCol_Text)));  // RenderTextEllipsis draws in the text colour
 		if (nameX + nameSize.x <= nameRight) {
 			draw->AddText(ImVec2(nameX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
 		} else if (nameRight > nameX) {
 			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
+		ImGui::PopStyleColor();
 		std::array<const char*, 3> tooltips{};
 		const int                  marks = a_marks.trailing ? 0 : OutfitMarkTooltips(a_marks, tooltips);
 		for (int i = 0; i < marks; ++i) {
@@ -4988,11 +4999,13 @@ namespace Theme
 		const float  nameRight = ghostMax.x - style.FramePadding.x;
 		const float  nameX = textX + DrawOutfitIcon(draw, textX, midY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
+		ImGui::PushStyleColor(ImGuiCol_Text, NameColor(a_icon ? a_icon->nameRgb : 0, ImGui::GetStyleColorVec4(ImGuiCol_Text)));  // RenderTextEllipsis draws in the text colour
 		if (nameX + nameSize.x <= nameRight) {
 			draw->AddText(ImVec2(nameX, textY), ImGui::GetColorU32(ImGuiCol_Text), a_name);
 		} else if (nameRight > nameX) {
 			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
+		ImGui::PopStyleColor();
 		ImGui::PopStyleVar();
 	}
 
@@ -5016,7 +5029,9 @@ namespace Theme
 			ImGui::Dummy(ImVec2(room, side));
 			ImGui::SameLine(0.0f, 0.0f);  // TextWrapped starts its wrapped lines where its first starts
 		}
+		ImGui::PushStyleColor(ImGuiCol_Text, NameColor(a_icon.nameRgb, ImGui::GetStyleColorVec4(ImGuiCol_Text)));
 		ImGui::TextWrapped("%s", a_name);
+		ImGui::PopStyleColor();
 	}
 
 	bool IconField(const char* a_id, const RowIcon& a_icon, bool a_interactive)

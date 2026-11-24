@@ -290,6 +290,7 @@ namespace Theme
 		HeadingIcon      line = {};          // OutfitRow only: this line drawing in the text colour, in place of `key`
 		bool             textColor = false;  // TickRow, SelectRow, TextRow, RemovableRow, IconText: tinted with the text colour, not `rgb`
 		bool             badge = false;      // OutfitRow, OutfitDragGhost, OutfitNameText, IconField: a layers mark (two stacked diamonds) over the icon's lower right corner
+		std::uint32_t    nameRgb = 0;        // OutfitRow, OutfitDragGhost, OutfitNameText: the name in this colour, 0xRRGGBB; 0 for the text colour
 	};
 	struct RowMark
 	{
@@ -383,6 +384,7 @@ namespace Theme
 		HeadingIcon      icon = HeadingIcon::kNone;
 		std::string_view rowIconKey;
 		bool             badge = false;  // with `rowIconKey`: RowIcon::badge over it
+		std::uint32_t    rgb = 0;        // a name's text in this colour, 0xRRGGBB, in place of the emphasis; 0 for that
 	};
 
 	// HeadingText whose subtitle is `subtitle`'s parts in order, on one line: names that do not

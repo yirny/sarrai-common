@@ -559,12 +559,15 @@ namespace Theme
 	// Default too), else a bare form for their Default (`Default Outfit`); a star for one
 	// chosen for a situation (`situations` is its tooltip, `For Town, Warm`; null for none); a
 	// warning mark in the error colour nearest the name (`warning` is its tooltip; null for none).
+	// `trailing` (null for none) is a text drawn there in the text colour in place of the marks,
+	// its right end where theirs would be.
 	struct OutfitMarks
 	{
 		bool        current = false;
 		bool        defaultOutfit = false;  // the actor's Default holds it
 		const char* situations = nullptr;
 		const char* warning = nullptr;
+		const char* trailing = nullptr;
 	};
 
 	// A row with the outfit's name, ending in an ellipsis short of `marks`, after its `icon`

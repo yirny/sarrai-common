@@ -4873,13 +4873,20 @@ namespace Theme
 		if (HasGrip(a_grip) && !markOnGrip) {
 			DrawGrip(draw, row.fillMin.x, nameMidY, a_grip);
 		}
-		// The marks, right of the name on its line, in LabelText's grey; the name is cut
-		// short of them. Each mark names itself in a tooltip while the mouse is over it.
-		const float  side = ImGui::GetTextLineHeight();
-		const float  marksRight = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
-		const ImVec2 markCentre(marksRight, textY + side * 0.5f);
-		DrawOutfitMarks(draw, markCentre, a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
-		const float  nameRight = marksRight - OutfitMarksWidth(a_marks);
+		// The marks, right of the name on its line, in LabelText's grey, or the trailing text in
+		// their place; the name is cut short of them. Each mark names itself in a tooltip while
+		// the mouse is over it.
+		const float side = ImGui::GetTextLineHeight();
+		const float marksRight = row.fillMax.x - ImGui::GetStyle().FramePadding.x;
+		float       nameRight = marksRight;
+		if (a_marks.trailing) {
+			const float width = ImGui::CalcTextSize(a_marks.trailing).x;
+			draw->AddText(ImVec2(marksRight - width, textY), ImGui::GetColorU32(ImGuiCol_Text), a_marks.trailing);
+			nameRight -= width + kOutfitMarkGap * g_scale;
+		} else {
+			DrawOutfitMarks(draw, ImVec2(marksRight, textY + side * 0.5f), a_marks, ImGui::GetColorU32(ImGuiCol_TextDisabled), (std::max)(1.0f, kMarkLineWidth * g_scale));
+			nameRight -= OutfitMarksWidth(a_marks);
+		}
 		const float  nameX = textX + DrawOutfitIcon(draw, textX, nameMidY, a_icon);
 		const ImVec2 nameSize = ImGui::CalcTextSize(a_name);
 		if (nameX + nameSize.x <= nameRight) {
@@ -4888,7 +4895,7 @@ namespace Theme
 			ImGui::RenderTextEllipsis(draw, ImVec2(nameX, textY), ImVec2(nameRight, textY + nameSize.y), nameRight, a_name, nullptr, &nameSize);
 		}
 		std::array<const char*, 3> tooltips{};
-		const int                  marks = OutfitMarkTooltips(a_marks, tooltips);
+		const int                  marks = a_marks.trailing ? 0 : OutfitMarkTooltips(a_marks, tooltips);
 		for (int i = 0; i < marks; ++i) {
 			const float right = marksRight - static_cast<float>(i) * (side + kOutfitMarkGap * g_scale);
 			if (ImGui::IsMouseHoveringRect(ImVec2(right - side, textY), ImVec2(right, textY + side))) {

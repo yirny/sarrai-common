@@ -300,6 +300,11 @@ namespace
 	// (Theme::RowMarkHovered); -1 for none. Render thread only.
 	int g_hoveredRowMark = -1;
 
+	// The tooltip of the icon the mouse is over (RowIcon::tooltip, SubtitleRun::iconTooltip) and
+	// the frame it was noted in, for Theme::ShowIconTooltip; nullptr for none. Render thread only.
+	const char* g_iconTooltip = nullptr;
+	int         g_iconTooltipFrame = -1;
+
 	const SkinFonts& FontFilesOf(Theme::Skin a_skin)
 	{
 		switch (a_skin) {
@@ -2821,8 +2826,19 @@ namespace
 		diamond(kFrontCentre, ImGui::GetColorU32(IM_COL32(0x45, 0x76, 0xCE, 0xFF)));
 	}
 
+	// Notes `a_text` for ShowIconTooltip while the mouse is over the icon `a_side` square at
+	// `a_topLeft`, in the current window as it can be reached: not under a popup and with no item
+	// held (a drag's copy notes nothing). Nothing for a null `a_text`.
+	void NoteIconTooltip(const char* a_text, ImVec2 a_topLeft, float a_side)
+	{
+		if (a_text && ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(a_topLeft, ImVec2(a_topLeft.x + a_side, a_topLeft.y + a_side))) {
+			g_iconTooltip = a_text;
+			g_iconTooltipFrame = ImGui::GetFrameCount();
+		}
+	}
+
 	// The white icon `a_icon` tinted with its colour, through the style alpha, under its badge
-	// if it has one.
+	// if it has one; its tooltip noted while the mouse is over it.
 	void DrawOutfitIconAt(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, const Theme::RowIcon& a_icon)
 	{
 		const ImU32 tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
@@ -2830,6 +2846,7 @@ namespace
 		if (a_icon.badge) {
 			DrawIconBadge(a_draw, a_topLeft, a_side);
 		}
+		NoteIconTooltip(a_icon.tooltip, a_topLeft, a_side);
 	}
 
 	// A name's colour: `a_rgb` (0xRRGGBB; RowIcon::nameRgb, SubtitleRun::rgb), or `a_otherwise`
@@ -3166,6 +3183,7 @@ namespace Theme
 				if (a_run.badge) {
 					DrawIconBadge(a_draw, topLeft, side);
 				}
+				NoteIconTooltip(a_run.iconTooltip, topLeft, side);
 			}
 		}
 
@@ -4336,6 +4354,14 @@ namespace Theme
 		ImGui::SetTooltip("%s", a_text);
 		PopPopupPadding();
 		ImGui::PopFont();
+	}
+
+	void ShowIconTooltip()
+	{
+		if (g_iconTooltip && g_iconTooltipFrame == ImGui::GetFrameCount()) {
+			Tooltip(g_iconTooltip);
+		}
+		g_iconTooltip = nullptr;
 	}
 
 	void BeginTooltip()

@@ -291,6 +291,7 @@ namespace Theme
 		bool             textColor = false;  // TickRow, SelectRow, TextRow, RemovableRow, IconText: tinted with the text colour, not `rgb`
 		bool             badge = false;      // OutfitRow, OutfitDragGhost, OutfitNameText, IconField: a layers mark (two stacked diamonds) over the icon's lower right corner
 		std::uint32_t    nameRgb = 0;        // OutfitRow, OutfitDragGhost, OutfitNameText: the name in this colour, 0xRRGGBB; 0 for the text colour
+		const char*      tooltip = nullptr;  // OutfitRow, OutfitNameText, IconField: shown while the mouse is over the icon, over the frame's other tooltips (ShowIconTooltip)
 	};
 	struct RowMark
 	{
@@ -383,8 +384,9 @@ namespace Theme
 		const char*      text;
 		HeadingIcon      icon = HeadingIcon::kNone;
 		std::string_view rowIconKey;
-		bool             badge = false;  // with `rowIconKey`: RowIcon::badge over it
-		std::uint32_t    rgb = 0;        // a name's text in this colour, 0xRRGGBB, in place of the emphasis; 0 for that
+		bool             badge = false;          // with `rowIconKey`: RowIcon::badge over it
+		std::uint32_t    rgb = 0;                // a name's text in this colour, 0xRRGGBB, in place of the emphasis; 0 for that
+		const char*      iconTooltip = nullptr;  // with `rowIconKey`: RowIcon::tooltip over its icon
 	};
 
 	// HeadingText whose subtitle is `subtitle`'s parts in order, on one line: names that do not
@@ -781,6 +783,13 @@ namespace Theme
 	void Tooltip(const char* text);
 	void BeginTooltip();
 	void EndTooltip();
+
+	// The tooltip of the outfit icon the mouse is over this frame (RowIcon::tooltip,
+	// SubtitleRun::iconTooltip), in place of every other tooltip of the frame; nothing when it is
+	// over none.
+	// Contract: once a frame, after everything that may ask for a tooltip; the noted text must
+	// live until then.
+	void ShowIconTooltip();
 
 	// The padding of tooltips: Vanilla's keep the square skins' while its windows pad wider
 	// for the corner knots, which tooltips do not draw; the other skins keep the style's. Push

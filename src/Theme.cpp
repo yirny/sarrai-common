@@ -2785,11 +2785,34 @@ namespace
 		a_draw->AddImage(texture->Id(a_side), topLeft, ImVec2(topLeft.x + a_side, topLeft.y + a_side), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), a_tint);
 	}
 
-	// The white icon `a_icon` tinted with its colour, through the style alpha.
+	// RowIcon::badge over an icon `a_side` square at `a_topLeft`: two overlapping squares on its
+	// lower right corner, the back one outlined and the front one filled, in the text colour
+	// through the style alpha.
+	void DrawIconBadge(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side)
+	{
+		constexpr float kBadgeRatio = 0.45f;    // the badge's side, of the icon's
+		constexpr float kSquareRatio = 0.7f;    // each square's side, of the badge's
+		constexpr float kOverhangRatio = 0.1f;  // how far it reaches past the icon's corner, of the icon's side
+
+		const float  badge = std::round(a_side * kBadgeRatio);
+		const float  square = std::round(badge * kSquareRatio);
+		const float  corner = a_side + std::round(a_side * kOverhangRatio) - badge;
+		const ImVec2 back(std::round(a_topLeft.x + corner), std::round(a_topLeft.y + corner));
+		const ImVec2 front(back.x + badge - square, back.y + badge - square);
+		const ImU32  color = ImGui::GetColorU32(ImGuiCol_Text);
+		a_draw->AddRect(back, ImVec2(back.x + square, back.y + square), color, 0.0f, 0, (std::max)(1.0f, g_scale));
+		a_draw->AddRectFilled(front, ImVec2(front.x + square, front.y + square), color);
+	}
+
+	// The white icon `a_icon` tinted with its colour, through the style alpha, under its badge
+	// if it has one.
 	void DrawOutfitIconAt(ImDrawList* a_draw, ImVec2 a_topLeft, float a_side, const Theme::RowIcon& a_icon)
 	{
 		const ImU32 tint = ImGui::GetColorU32(IM_COL32((a_icon.rgb >> 16) & 0xFF, (a_icon.rgb >> 8) & 0xFF, a_icon.rgb & 0xFF, 255));
 		DrawTintedOutfitIcon(a_draw, a_icon.key, a_topLeft, a_side, tint);
+		if (a_icon.badge) {
+			DrawIconBadge(a_draw, a_topLeft, a_side);
+		}
 	}
 
 	// An outfit row's icon: a square of the text height (kVanillaIconFontSize in Vanilla).
